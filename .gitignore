@@ -1,0 +1,45 @@
+# ============================================================
+#  .gitignore — File yang TIDAK boleh masuk ke Git
+# ============================================================
+
+# Environment variables — SANGAT PENTING, jangan pernah commit ini
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+env/
+.venv/
+
+# Django
+*.log
+media/
+staticfiles/
+db.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.env
+__pycache__/
+*.pyc
+media/qrcodes/
+venv/
+db.sqlite3
