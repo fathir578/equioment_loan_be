@@ -1,8 +1,11 @@
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from django.db import connection
+from django.http import HttpResponse
 import json
+import csv
 from apps.loans.models import Loan
 from apps.loans.serializers import LoanSerializer
 from core.permissions import IsOwnerOrAdmin, IsAdminOrPetugas
@@ -66,3 +69,31 @@ class LoanViewSet(viewsets.ModelViewSet):
         loan.approved_by = request.user
         loan.save()
         return success_response(LoanSerializer(loan).data, message="Peminjaman ditolak.")
+
+class ExportLoansCSVView(APIView):
+    """
+    Export daftar peminjaman ke format CSV.
+    Hanya untuk Admin/Petugas.
+    """
+    permission_classes = [IsAdminOrPetugas]
+
+    def get(self, request):
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = 'attachment; filename="laporan_peminjaman.csv"'
+
+        writer = csv.writer(response)
+        writer.writerow(['ID', 'Peminjam', 'Tanggal Pinjam', 'Jatuh Tempo', 'Status', 'Alat'])
+
+        loans = Loan.objects.all().select_related('user').prefetch_related('items__tool')
+        for loan in loans:
+            tools_str = ", ".join([f"{item.tool.name} (x{item.quantity})" for item in loan.items.all()])
+            writer.writerow([
+                loan.id,
+                loan.user.username,
+                loan.loan_date,
+                loan.due_date,
+                loan.status,
+                tools_str
+            ])
+
+        return response
