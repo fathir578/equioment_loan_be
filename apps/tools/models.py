@@ -54,7 +54,11 @@ class Tool(models.Model):
     def save(self, *args, **kwargs):
         # Auto-generate qr_code saat alat pertama kali dibuat
         if not self.qr_code:
+            from core.utils import generate_qr_token, generate_qr_image
             self.qr_code = generate_qr_token()
+            # Generate fisik gambar QR
+            generate_qr_image(self.qr_code, f'tool_{self.qr_code[:8]}')
+
         # Pastikan stock_available tidak melebihi stock_total
         if self.stock_available > self.stock_total:
             self.stock_available = self.stock_total
