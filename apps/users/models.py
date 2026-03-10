@@ -87,7 +87,11 @@ class User(AbstractBaseUser, PermissionsMixin):
     def save(self, *args, **kwargs):
         # Auto-generate qr_token saat pertama kali dibuat
         if not self.qr_token:
+            from core.utils import generate_qr_token, generate_qr_image
             self.qr_token = generate_qr_token()
+            # Generate fisik gambar QR
+            generate_qr_image(self.qr_token, f'user_{self.username}')
+            
         super().save(*args, **kwargs)
 
     def __str__(self):
