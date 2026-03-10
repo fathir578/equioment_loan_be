@@ -43,3 +43,4 @@ __pycache__/
 media/qrcodes/
 venv/
 db.sqlite3
+DATABASE_ERD_EXPLAINED.md
