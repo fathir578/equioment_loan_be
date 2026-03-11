@@ -58,17 +58,21 @@ class ActivityLogMiddleware:
 
             # Buat deskripsi yang informatif
             action = f"{request.method} {request.path}"
+            user_agent = request.META.get('HTTP_USER_AGENT', '')
+            ip_address = self._get_client_ip(request)
+
             description = (
                 f"Status: {response.status_code} | "
                 f"User: {request.user.username} | "
-                f"IP: {self._get_client_ip(request)}"
+                f"IP: {ip_address}"
             )
 
             ActivityLog.objects.create(
                 user        = request.user,
                 action      = action,
                 description = description,
-                ip_address  = self._get_client_ip(request),
+                ip_address  = ip_address,
+                user_agent  = user_agent,
             )
         except Exception:
             # Jangan sampai error logging menghentikan request utama

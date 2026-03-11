@@ -22,6 +22,7 @@ class ActivityLog(models.Model):
     action      = models.CharField(max_length=100)       # Contoh: "POST /api/v1/loans/"
     description = models.TextField(blank=True)
     ip_address  = models.GenericIPAddressField(null=True, blank=True)
+    user_agent  = models.TextField(null=True, blank=True)
     created_at  = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -31,6 +32,7 @@ class ActivityLog(models.Model):
             models.Index(fields=['user']),
             models.Index(fields=['action']),
             models.Index(fields=['created_at']),
+            models.Index(fields=['ip_address']),
         ]
 
     def __str__(self):
