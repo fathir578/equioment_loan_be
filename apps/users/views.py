@@ -2,6 +2,7 @@ from rest_framework import generics, status, viewsets, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from apps.users.serializers import UserSerializer, RegisterSerializer, MyTokenObtainPairSerializer
 from core.utils import success_response, created_response
@@ -23,6 +24,22 @@ class RegisterView(generics.CreateAPIView):
 
 class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
+
+class LogoutView(APIView):
+    """
+    Logout dengan mem-blacklist refresh token.
+    Token akses di client harus dihapus manual.
+    """
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def post(self, request):
+        try:
+            refresh_token = request.data.get("refresh")
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return success_response(message="Logout berhasil.")
+        except Exception as e:
+            return Response({"success": False, "message": "Token tidak valid."}, status=status.HTTP_400_BAD_REQUEST)
 
 class ProfileView(APIView):
     permission_classes = (permissions.IsAuthenticated,)
