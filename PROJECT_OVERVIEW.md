@@ -1,95 +1,119 @@
-# Laporan Arsitektur & Implementasi Sistem: Backend Peminjaman Alat
+# 🏗️ Laporan Arsitektur & Implementasi Sistem: Backend Peminjaman Alat
 **Dokumen Referensi Teknis Komprehensif — UKK RPL 2025/2026**
 
 ---
 
-## 1. Pendahuluan
-Sistem ini dirancang sebagai solusi backend yang tangguh untuk manajemen peminjaman alat di lingkungan sekolah. Fokus utama pengembangan adalah pada **Integritas Data** (menggunakan logika sisi database) dan **Keamanan Berlapis** (menggunakan standar industri seperti JWT, Argon2, dan Throttling). Dokumen ini berfungsi sebagai peta jalan teknis untuk memahami seluruh komponen sistem.
+## 1. 📂 Pendahuluan
+Sistem Peminjaman Alat ini dirancang sebagai platform backend yang tangguh, aman, dan efisien untuk manajemen inventaris di sekolah. Fokus utama proyek ini adalah menjaga **Integritas Data** melalui logika tingkat rendah di database (SQL) dan memberikan **Keamanan Berlapis** di tingkat aplikasi (Python/Django). Sistem ini tidak hanya mencatat data, tetapi juga memvalidasi setiap aturan bisnis secara otomatis untuk mencegah kesalahan manusia (*human error*).
 
 ---
 
-## 2. Struktur Proyek & Coding Guidelines
-Proyek ini mengikuti pola arsitektur **Modular Monolith** yang diatur dalam folder `apps/`. Pemisahan ini memastikan kode mudah dibaca, diuji, dan dikembangkan di masa depan.
+## 2. 🏛️ Arsitektur Proyek: Modular Monolith
+Aplikasi ini dibangun menggunakan arsitektur **Modular Monolith**. Meskipun berada dalam satu basis kode, setiap fungsi bisnis dipisahkan menjadi modul (app) mandiri di dalam folder `apps/`. Pendekatan ini memudahkan pemeliharaan, pengujian, dan potensi migrasi ke arsitektur microservices di masa depan.
 
-### 2.1 Direktori Utama
-*   `config/`: Berisi konfigurasi global Django.
-    *   `settings.py`: Jantung konfigurasi (Database, JWT, Password Hashers, Middleware, Throttling).
-    *   `urls.py`: Routing utama yang menghubungkan semua modul API.
-*   `core/`: Berisi logika yang digunakan bersama oleh semua aplikasi.
-    *   `permissions.py`: Definisi hak akses RBAC (Admin, Petugas, Peminjam).
-    *   `pagination.py`: Standar format data per halaman.
-    *   `middleware.py`: Custom middleware untuk audit trail (IP & User-Agent).
-*   `apps/`: Folder berisi modul bisnis mandiri (users, tools, loans, returns, activity_logs).
-
----
-
-## 3. Implementasi Kriteria Teknis & Keamanan
-
-### 🔐 3.1 Authentication & Authorization (WAJIB)
-Sistem menggunakan **JSON Web Token (JWT)** untuk autentikasi stateless.
-*   **Implementasi Login:** `apps/users/views.py` -> `MyTokenObtainPairView`.
-*   **Logout & Blacklist:** User dapat logout secara aman dengan mem-blacklist Refresh Token.
-*   **Authorization (RBAC):** Izin akses didefinisikan secara deklaratif di `core/permissions.py`.
-
-### 🛡️ 3.2 Password Hashing (Advanced)
-Untuk proteksi data pengguna, sistem menggunakan **Argon2**, yang merupakan algoritma hashing paling aman saat ini, jauh lebih unggul dibandingkan MD5 atau SHA1.
-
-### 🚦 3.3 Rate Limiting / Throttling (PENTING)
-Mencegah serangan brute force dan penyalahgunaan API.
-*   **Logika:** 
-    *   `login`: 5 request/menit khusus untuk endpoint `/api/auth/login/`.
-    *   `user`: 100 request/menit untuk user terautentikasi.
-
-### 📄 3.4 Pagination (PENTING)
-Memastikan performa aplikasi tetap cepat meskipun data mencapai ribuan.
-*   **Lokasi:** `core/pagination.py` -> kelas `StandardPagination`.
+### 2.1 Komponen Utama Direktori
+*   **`config/`**: Pusat kendali global Django. Berisi pengaturan keamanan, koneksi database, konfigurasi JWT, dan routing utama (`urls.py`).
+*   **`core/`**: Berisi logika inti yang bersifat lintas-modul (*cross-cutting concerns*), seperti:
+    *   `middleware.py`: Audit trail otomatis.
+    *   `permissions.py`: Implementasi RBAC (Role-Based Access Control).
+    *   `exceptions.py`: Standardisasi error handling API.
+    *   `utils.py`: Helper untuk QR Code (UUID4) dan kalkulasi denda.
+*   **`apps/`**: Domain bisnis spesifik:
+    *   `users`: Manajemen identitas, peran, dan otentikasi.
+    *   `tools`: Katalog alat, stok, dan kondisi fisik.
+    *   `categories`: Pengelompokan alat sekolah.
+    *   `loans`: Transaksi peminjaman (Pusat logika bisnis).
+    *   `returns`: Transaksi pengembalian dan manajemen denda.
+    *   `activity_logs`: Rekam jejak audit digital.
+*   **`sql/`**: Logika bisnis tingkat rendah (Triggers, Stored Procedures, Schema).
 
 ---
 
-## 4. Fitur Tambahan Unggulan (Advanced Features)
+## 3. 🛡️ Keamanan Sistem Berlapis (v1.1.0+)
+Keamanan adalah prioritas utama dalam sistem ini. Kami mengimplementasikan standar industri terbaru untuk melindungi data sensitif pengguna dan mencegah serangan siber.
 
-### 📊 4.1 Dashboard Analytics API
-Menyediakan endpoint ringkasan data untuk Admin.
-*   **Lokasi:** `apps/activity_logs/views.py` -> `DashboardStatsView`.
+### 🔐 3.1 Otentikasi & Autorisasi (RBAC)
+*   **JWT (JSON Web Token)**: Digunakan untuk sesi stateless. Token akses memiliki umur singkat (1 jam), sementara *refresh token* digunakan untuk memperbarui sesi tanpa login ulang.
+*   **Token Blacklisting**: Saat user logout, *refresh token* akan dimasukkan ke dalam daftar hitam (*blacklist*) di database, sehingga token tersebut tidak dapat digunakan lagi oleh penyusup.
+*   **Role-Based Access Control (RBAC)**:
+    *   **Admin**: Akses penuh ke seluruh sistem, laporan, dan manajemen user.
+    *   **Petugas**: Mengelola inventaris, menyetujui peminjaman, dan memproses pengembalian.
+    *   **Peminjam (Siswa)**: Hanya bisa mengajukan pinjaman dan melihat riwayat pribadinya.
 
-### 📁 4.2 Export Laporan (CSV)
-Memungkinkan Admin mengunduh laporan peminjaman dalam format Excel-ready.
-*   **Lokasi:** `apps/loans/views.py` -> `ExportLoansCSVView`.
+### 🛡️ 3.2 Proteksi Data & Password
+*   **Argon2 Hashing**: Menggunakan pemenang *Password Hashing Competition* sebagai algoritma utama. Argon2 jauh lebih kuat melawan serangan brute-force dan GPU dibandingkan MD5, SHA256, atau PBKDF2 standar.
+*   **Security Headers**: 
+    *   **HSTS (HTTP Strict Transport Security)**: Memaksa koneksi selalu menggunakan HTTPS.
+    *   **XSS Filter**: Mencegah serangan *Cross-Site Scripting*.
+    *   **Content-Type Nosniff**: Mencegah browser menebak tipe konten secara berbahaya.
+    *   **X-Frame-Options**: Mencegah serangan *Clickjacking*.
 
-### 📱 4.3 Otomatisasi QR Code (Safe & Unique)
-Sistem secara otomatis men-generate QR Code menggunakan **UUID4** (Universally Unique Identifier) yang tidak dapat diprediksi oleh pihak luar.
-*   **Lokasi:** `core/utils.py` -> `generate_qr_token`.
-
-### 🧪 4.4 Automated Logic Testing
-Skrip pengujian otomatis untuk menjamin validitas database trigger dan stored procedure.
-*   **Lokasi:** `tests/test_logic.py`.
-
----
-
-## 5. Skenario Pengujian (User Acceptance Test - UAT)
-
-| No | Skenario | Langkah | Hasil yang Diharapkan |
-| :--- | :--- | :--- | :--- |
-| 1 | Registrasi Siswa | POST `/api/auth/register/` | Akun dibuat dengan password ter-hash Argon2. |
-| 2 | Login | POST `/api/auth/login/` | Mendapatkan access & refresh token. |
-| 3 | Audit Trail | Lakukan aksi POST/PUT | Log tercatat di DB beserta IP & User-Agent. |
-| 4 | Logout | POST `/api/auth/logout/` | Refresh token di-blacklist, tidak bisa dipakai lagi. |
-| 5 | Tambah Alat | POST `/api/tools/` (Admin) | Alat tersimpan, file QR Code terbuat otomatis. |
-| 6 | Pengajuan Pinjam | POST `/api/loans/` | Memanggil `sp_create_loan`. Transaksi DB menjamin integritas stok. |
-| 7 | Pengembalian | POST `/api/returns/` | Prosedur menghitung denda otomatis di level DB. |
+### 🚦 3.3 Rate Limiting / Throttling
+Mencegah penyalahgunaan API dan serangan DDoS tingkat aplikasi:
+*   **Endpoint Login**: Dibatasi maksimal 5 percobaan per menit (Anti-Brute Force).
+*   **Endpoint Publik/Umum**: Dibatasi 20 request/menit untuk user anonim.
+*   **User Terautentikasi**: Dibatasi 100 request/menit untuk menjaga performa server.
 
 ---
 
-## 6. Arsitektur Database & Logika SQL (WAJIB DARI SOAL)
+## 4. 📝 Audit Trail & Logging Otomatis
+Setiap aksi yang bersifat mengubah data (POST, PUT, PATCH, DELETE) akan dicatat secara otomatis oleh sistem tanpa perlu intervensi developer di setiap fungsi.
+
+### 4.1 Detail Data Audit:
+*   **User**: Siapa yang melakukan aksi.
+*   **Action**: Endpoint dan metode HTTP yang diakses.
+*   **IP Address**: Alamat jaringan pelaku (mendukung deteksi dari proxy/load balancer).
+*   **User-Agent**: Informasi mengenai browser dan perangkat yang digunakan.
+*   **Timestamp**: Waktu kejadian secara presisi hingga milidetik.
+
+Log ini disimpan dengan relasi `ON DELETE SET NULL`, memastikan bahwa jika akun user dihapus, catatan riwayat aktivitasnya tetap tersimpan sebagai bukti audit yang sah.
+
+---
+
+## 5. 📱 Identitas Unik & QR Code (Safe Identifiers)
+Sistem menggunakan **QR Code** untuk mempermudah identifikasi fisik alat dan kartu anggota siswa.
+
+*   **Non-Predictable IDs**: Token QR di-generate menggunakan **UUID4** (Universally Unique Identifier). Berbeda dengan ID numerik (1, 2, 3), UUID tidak dapat ditebak oleh pihak luar, sehingga mencegah akses data secara acak (*ID Enumeration Attack*).
+*   **Real-time Generation**: File gambar `.png` dibuat secara otomatis pada saat objek disimpan ke database menggunakan sinyal override `save()`.
+
+---
+
+## 6. ⚙️ Logika Bisnis Sisi Database (Performance & Integrity)
+Berbeda dengan aplikasi standar, sistem ini memindahkan logika krusial ke dalam database (Stored Procedures & Triggers) untuk menjamin kecepatan dan konsistensi data.
 
 ### 6.1 Stored Procedures (`sql/stored_procedures.sql`)
-*   **`sp_create_loan`**: Menjamin atomisitas peminjaman multi-item dengan `START TRANSACTION`.
-*   **`sp_process_return`**: Menghitung denda secara otomatis di sisi server database.
+*   **`sp_create_loan`**: Digunakan saat siswa mengajukan pinjaman. Prosedur ini menggunakan `START TRANSACTION` dan `FOR UPDATE` (Row Locking) untuk memastikan tidak ada dua orang yang bisa meminjam alat yang sama di detik yang sama jika stok hanya tersisa satu.
+*   **`sp_process_return`**: Menghitung denda secara otomatis di sisi server. Jika terlambat, sistem akan langsung mengalikan selisih hari dengan tarif denda yang berlaku tanpa perlu bantuan kode Python.
 
-### 6.2 Triggers (`sql/triggers.sql`)
-*   **Stok Otomatis**: Stok berkurang/bertambah otomatis saat status loan berubah.
-*   **Validasi Keamanan**: Mencegah approval ilegal di level database.
+### 6.2 Database Triggers (`sql/triggers.sql`)
+*   **Auto-Stock Update**: Saat petugas mengubah status peminjaman menjadi 'Approved', trigger akan secara otomatis mengurangi stok di tabel `tools`. Begitu juga sebaliknya saat alat dikembalikan.
+*   **Condition Downgrade Protection**: Jika alat dikembalikan dengan kondisi 'Rusak', trigger akan mengupdate kondisi permanen alat tersebut di katalog pusat agar tidak bisa dipinjam oleh orang lain sebelum diperbaiki.
 
 ---
-**Dibuat oleh:** Sistem Backend UKK
-**Status:** Produksi / Siap Pakai / v1.1.0
+
+## 7. 🧪 Strategi Pengujian & Validasi
+Kualitas kode dijamin melalui pengujian otomatis yang mencakup:
+*   **Integrity Testing**: Memastikan trigger database bekerja dengan benar saat ada perubahan status.
+*   **Concurrency Testing**: Menguji keamanan transaksi saat banyak orang melakukan peminjaman secara bersamaan.
+*   **Security Testing**: Memastikan endpoint yang diproteksi tidak bisa diakses tanpa token JWT yang valid.
+
+---
+
+## 8. 📊 Format API & Standarisasi Response
+Untuk memudahkan integrasi dengan frontend (React/Angular), seluruh API mengikuti format seragam:
+```json
+{
+    "success": true,
+    "message": "Pesan keberhasilan dalam bahasa yang user-friendly",
+    "data": { ... payload data ... }
+}
+```
+Standardisasi ini mencakup penanganan error (Exception Handler) yang menyembunyikan detail teknis (*stack trace*) dari pengguna untuk alasan keamanan.
+
+---
+
+## 9. 🏁 Kesimpulan
+Sistem Backend Peminjaman Alat (v1.1.x) bukan sekadar aplikasi CRUD biasa. Ini adalah sistem inventaris yang dirancang dengan standar keamanan tinggi dan integritas data yang sangat ketat. Dengan kombinasi Django REST Framework dan SQL Advanced (Stored Procedures/Triggers), sistem ini siap digunakan untuk skala produksi dengan performa yang optimal.
+
+**Status Dokumentasi:** v1.1.2 (Final Update)
+**Tanggal Diperbarui:** 11 Maret 2026
