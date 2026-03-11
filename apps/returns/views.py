@@ -15,10 +15,15 @@ class ReturnViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         # Gunakan Stored Procedure sp_process_return
+        from django.conf import settings
+        
         loan_id = request.data.get('loan_id')
         processed_by = request.user.id
         return_date = request.data.get('return_date')
-        fine_per_day = request.data.get('fine_per_day', 5000)
+        
+        # Keamanan: Ambil denda dari settings, jangan percaya input user
+        fine_per_day = getattr(settings, 'DEFAULT_FINE_PER_DAY', 5000)
+        
         items = request.data.get('items', []) # [{"loan_item_id":1, "qty_returned":1, "condition":"baik"}]
         notes = request.data.get('notes', '')
 
