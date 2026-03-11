@@ -11,7 +11,7 @@
 --          + menggunakan return_items bukan langsung ke returns
 -- ============================================================
 
-USE db_peminjaman_alat;
+
 
 DELIMITER $$
 

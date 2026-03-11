@@ -1,5 +1,5 @@
 -- triggers.sql (MariaDB compatible)
-USE db_peminjaman_alat;
+
 
 DELIMITER $$
 

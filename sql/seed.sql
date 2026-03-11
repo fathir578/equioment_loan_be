@@ -4,7 +4,7 @@
 --  Disesuaikan dengan struktur tabel Django Migrations
 -- ============================================================
 
-USE db_peminjaman_alat;
+
 
 SET FOREIGN_KEY_CHECKS = 0;
 
