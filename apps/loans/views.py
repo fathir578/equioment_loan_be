@@ -18,8 +18,10 @@ class LoanViewSet(viewsets.ModelViewSet):
     search_fields = ['notes', 'user__username']
 
     def get_queryset(self):
-        if self.request.user.role == 'admin':
+        # Admin & Petugas (Staff) can see everything
+        if self.request.user.role in ('admin', 'petugas'):
             return Loan.objects.all()
+        # Siswa only sees their own
         return Loan.objects.filter(user=self.request.user)
 
     def create(self, request, *args, **kwargs):
@@ -50,25 +52,32 @@ class LoanViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminOrPetugas])
     def approve(self, request, pk=None):
-        loan = self.get_object()
-        if loan.status != 'pending':
-            return Response({'success': False, 'message': 'Hanya peminjaman berstatus pending yang bisa disetujui.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            loan = self.get_object()
+            if loan.status != 'pending':
+                return Response({'success': False, 'message': 'Hanya peminjaman berstatus pending yang bisa disetujui.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        loan.status = 'approved'
-        loan.approved_by = request.user
-        loan.save()
-        return success_response(LoanSerializer(loan).data, message="Peminjaman disetujui.")
+            loan.status = 'approved'
+            loan.approved_by = request.user
+            loan.save() # This triggers DB triggers (e.g., stock update)
+            return success_response(LoanSerializer(loan).data, message="Peminjaman disetujui.")
+        except Exception as e:
+            # Catch DB trigger errors (SIGNAL SQLSTATE)
+            return Response({'success': False, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     @action(detail=True, methods=['post'], permission_classes=[IsAdminOrPetugas])
     def reject(self, request, pk=None):
-        loan = self.get_object()
-        if loan.status != 'pending':
-            return Response({'success': False, 'message': 'Hanya peminjaman berstatus pending yang bisa ditolak.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            loan = self.get_object()
+            if loan.status != 'pending':
+                return Response({'success': False, 'message': 'Hanya peminjaman berstatus pending yang bisa ditolak.'}, status=status.HTTP_400_BAD_REQUEST)
 
-        loan.status = 'rejected'
-        loan.approved_by = request.user
-        loan.save()
-        return success_response(LoanSerializer(loan).data, message="Peminjaman ditolak.")
+            loan.status = 'rejected'
+            loan.approved_by = request.user
+            loan.save()
+            return success_response(LoanSerializer(loan).data, message="Peminjaman ditolak.")
+        except Exception as e:
+            return Response({'success': False, 'message': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 class ExportLoansCSVView(APIView):
     """
