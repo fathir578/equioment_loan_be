@@ -1,45 +1,63 @@
 # ============================================================
-#  .gitignore — File yang TIDAK boleh masuk ke Git
+#  .gitignore — Proteksi File Sensitif & Berbahaya
 # ============================================================
 
-# Environment variables — SANGAT PENTING, jangan pernah commit ini
+# --- KEAMANAN UTAMA (SANGAT PENTING) ---
 .env
+.env.*
+!.env.example
+*.key
+*.pem
+*.cert
+token.txt
+SECRET_KEY
+secrets.json
 
-# Python
+# --- DJANGO SENSITIF ---
+config/settings_local.py
+db.sqlite3
+db.sqlite3-journal
+
+# --- MEDIA & GENERATED ASSETS ---
+# Kita abaikan hasil generate QR Code agar tidak memenuhi repositori
+media/qrcodes/*.png
+media/uploads/
+staticfiles/
+
+# --- PYTHON ---
 __pycache__/
 *.py[cod]
-*.pyo
-*.pyd
-*.egg-info/
-dist/
-build/
-*.egg
-
-# Virtual environment
-venv/
+*$py.class
+*.so
+.Python
 env/
+venv/
 .venv/
+pip-log.txt
+pip-delete-this-directory.txt
+.toast
+.lucid
+.cache
+.pytest_cache/
+.coverage
+htmlcov/
 
-# Django
+# --- LOGS ---
 *.log
-media/
-staticfiles/
-db.sqlite3
+logs/
+*.err
+*.out
 
-# IDE
+# --- IDE & SYSTEM ---
 .vscode/
 .idea/
 *.swp
 *.swo
 .DS_Store
+Thumbs.db
 
-# Testing
-.coverage
-htmlcov/
-.pytest_cache/
-.env
-__pycache__/
-*.pyc
-media/qrcodes/
-venv/
-db.sqlite3
+# --- DATABASE ARTIFACTS ---
+# Abaikan dump database mentah jika ada
+*.sql.gz
+*.sql.bak
+dump.sql
