@@ -13,6 +13,7 @@ Digunakan untuk manajemen akun dan sesi login.
 | `/auth/register/` | POST | Public | Registrasi akun siswa baru (default role: peminjam). |
 | `/auth/login/` | POST | Public | Login untuk mendapatkan Access & Refresh Token (JWT). |
 | `/auth/refresh/` | POST | Authenticated | Memperbarui Access Token menggunakan Refresh Token. |
+| `/auth/logout/` | POST | Authenticated | Blacklist Refresh Token agar tidak bisa digunakan lagi. |
 | `/auth/profile/` | GET | Authenticated | Mengambil data profil user yang sedang login. |
 
 ---

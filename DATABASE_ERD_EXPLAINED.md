@@ -1,6 +1,6 @@
 # Penjelasan Struktur Database & ERD
 **Proyek:** Sistem Peminjaman Alat Sekolah
-**Status:** Dokumen Rahasia (Hanya untuk Developer)
+**Status:** Dokumen Teknis (Sesuai v1.1.0)
 
 ---
 
@@ -11,9 +11,9 @@ Menyimpan identitas semua pengguna sistem.
 *   `id`: Primary Key (Auto Increment).
 *   `username`: Unik, identitas login.
 *   `email`: Unik, alamat surel.
-*   `password`: Hash (Bcrypt/PBKDF2).
+*   `password`: Hash (**Argon2** / PBKDF2).
 *   `role`: Enum ('admin', 'petugas', 'peminjam').
-*   `qr_token`: Unik, token rahasia untuk kartu QR.
+*   `qr_token`: Unik, token rahasia untuk kartu QR (UUID4).
 *   `is_active`, `is_staff`: Flag keamanan Django.
 
 ### 1.2 Tabel `categories`
@@ -30,7 +30,7 @@ Katalog fisik alat.
 *   `stock_total`: Stok awal pengadaan.
 *   `stock_available`: Stok yang bisa dipinjam saat ini.
 *   `condition`: Enum ('baik', 'rusak_ringan', 'rusak_berat').
-*   `qr_code`: Token fisik yang tertempel di alat.
+*   `qr_code`: Token fisik yang tertempel di alat (UUID4).
 
 ### 1.4 Tabel `loans` (Header Peminjaman)
 Mencatat siapa yang meminjam dan kapan.
@@ -64,11 +64,12 @@ Setiap kali siswa datang membawa alat, dicatat satu sesi ini.
 *   `quantity_returned`: Jumlah yang dikembalikan saat ini.
 *   `condition_on_return`: Kondisi alat saat diterima kembali.
 
-### 1.8 Tabel `activity_logs`
+### 1.8 Tabel `activity_logs` (Audit Trail)
 *   `id`: Primary Key.
 *   `user_id`: FK ke `users` (Opsional).
 *   `action`: Nama aksi (misal: "POST /loans/").
 *   `ip_address`: Alamat IP pengakses.
+*   `user_agent`: Informasi browser/perangkat pengakses.
 
 ---
 
