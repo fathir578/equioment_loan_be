@@ -1,138 +1,149 @@
-# Laporan Arsitektur & Implementasi Sistem: Backend Peminjaman Alat
-**Dokumen Referensi Teknis Komprehensif — UKK RPL 2025/2026**
+# System Architecture & Implementation Report: Equipment Loan Backend
+**Comprehensive Technical Reference Document — UKK RPL 2025/2026**
 
 ---
 
-## 1. Pendahuluan
-Sistem ini dirancang sebagai solusi backend yang tangguh untuk manajemen peminjaman alat di lingkungan sekolah. Fokus utama pengembangan adalah pada **Integritas Data** (menggunakan logika sisi database) dan **Keamanan** (menggunakan standar industri seperti JWT dan Throttling). Dokumen ini berfungsi sebagai peta jalan teknis untuk memahami seluruh komponen sistem.
+## 1. Introduction
+This system is designed as a robust backend solution for managing equipment loans in a school environment. The primary focus of development is on **Data Integrity** (using database-side logic) and **Security** (using industry standards such as JWT, Argon2, and Rate Limiting). This document serves as a technical roadmap for understanding all system components.
 
 ---
 
-## 2. Struktur Proyek & Coding Guidelines
-Proyek ini mengikuti pola arsitektur **Modular Monolith** yang diatur dalam folder `apps/`. Pemisahan ini memastikan kode mudah dibaca, diuji, dan dikembangkan di masa depan.
+## 2. Project Structure & Coding Guidelines
+This project follows a **Modular Monolith** architecture pattern organized under the `apps/` folder. This separation ensures the code is readable, testable, and maintainable for future development.
 
-### 2.1 Direktori Utama
-*   `config/`: Berisi konfigurasi global Django.
-    *   `settings.py`: Jantung konfigurasi (Database, JWT, Middleware, Throttling).
-    *   `urls.py`: Routing utama yang menghubungkan semua modul API.
-    *   `wsgi.py` & `asgi.py`: Entry point untuk server produksi.
-*   `core/`: Berisi logika yang digunakan bersama oleh semua aplikasi.
-    *   `permissions.py`: Definisi hak akses RBAC (Admin, Petugas, Peminjam).
-    *   `pagination.py`: Standar format data per halaman.
-    *   `middleware.py`: Logika otomatis untuk mencatat aktivitas user (Audit Trail).
-    *   `utils.py`: Fungsi pembantu (QR Code generator, success response formatter).
-    *   `exceptions.py`: Penanganan error global agar format response selalu JSON.
-*   `apps/`: Folder berisi modul bisnis mandiri.
-    *   `users/`: Autentikasi dan manajemen profil.
-    *   `categories/`: Klasifikasi jenis alat.
-    *   `tools/`: Katalog inventaris alat.
-    *   `loans/`: Transaksi peminjaman dan approval.
-    *   `returns/`: Transaksi pengembalian dan kalkulasi denda.
-    *   `activity_logs/`: Catatan audit sistem.
-
----
-
-## 3. Implementasi Kriteria Teknis (Detail Kode)
-
-### 🔐 3.1 Authentication & Authorization (WAJIB)
-Sistem menggunakan **JSON Web Token (JWT)** untuk autentikasi stateless.
-*   **Implementasi Login:** `apps/users/views.py` -> `MyTokenObtainPairView`.
-*   **Custom Claims:** Kita menyisipkan `role` dan `username` ke dalam payload token di `apps/users/serializers.py` -> `MyTokenObtainPairSerializer`.
-*   **Authorization (RBAC):** 
-    *   Izin akses didefinisikan di `core/permissions.py`.
-    *   Contoh: `IsAdminOrPetugas` digunakan pada endpoint `/tools/` agar hanya staf yang bisa mengubah data alat.
-    *   `IsOwnerOrAdmin` digunakan pada `/loans/` agar siswa hanya bisa melihat datanya sendiri, sementara Admin bisa melihat semuanya.
-
-### 🚦 3.2 Rate Limiting / Throttling (PENTING)
-Mencegah serangan brute force dan penyalahgunaan API.
-*   **Lokasi:** `config/settings.py` pada bagian `REST_FRAMEWORK`.
-*   **Logika:** 
-    *   `anon`: 20 request/menit untuk user publik.
-    *   `user`: 100 request/menit untuk user terdaftar.
-    *   `login`: 5 request/menit khusus untuk endpoint `/auth/login/`.
-
-### 📄 3.3 Pagination (PENTING)
-Memastikan performa aplikasi tetap cepat meskipun data mencapai ribuan.
-*   **Lokasi:** `core/pagination.py` -> kelas `StandardPagination`.
-*   **Format:** Menghasilkan metadata seperti `total_pages`, `current_page`, dan `results`.
-*   **Default:** 10 item per halaman, dapat diatur via query param `?page_size=`.
-
-### ✅ 3.4 Input Validation (WAJIB)
-Validasi dilakukan di tiga lapis (Triple Layer Validation):
-1.  **Serializer Layer:** Validasi tipe data dan format di `apps/*/serializers.py`.
-2.  **Model Layer:** Validasi logika bisnis di `apps/loans/models.py` (method `clean()`) untuk memastikan tanggal kembali tidak mendahului tanggal pinjam.
-3.  **Database Layer:** Constraint `CHECK` dan Trigger di SQL untuk memastikan integritas data (misal: stok tidak boleh negatif).
+### 2.1 Main Directories
+- `config/`: Contains global Django configuration.
+  - `settings.py`: Core configuration (Database, JWT, Middleware, Throttling, Security Headers).
+  - `urls.py`: Main routing connecting all API modules.
+  - `wsgi.py` & `asgi.py`: Entry points for production servers.
+- `core/`: Contains shared logic used across all applications.
+  - `permissions.py`: RBAC access control definitions (Admin, Petugas, Peminjam).
+  - `pagination.py`: Standardized paginated response format.
+  - `middleware.py`: Automatic activity logging middleware (Audit Trail).
+  - `utils.py`: Helper functions (QR Code generator, response formatters).
+  - `exceptions.py`: Global error handler ensuring all responses are JSON.
+- `apps/`: Contains independent business modules.
+  - `users/`: Authentication, registration, and profile management.
+  - `categories/`: Equipment type classification.
+  - `tools/`: Equipment inventory catalog.
+  - `loans/`: Loan transactions and approval workflow.
+  - `returns/`: Return transactions and fine calculation.
+  - `activity_logs/`: System audit records.
 
 ---
 
-## 4. Arsitektur Database & Logika SQL (WAJIB DARI SOAL)
+## 3. Technical Criteria Implementation
 
-Sistem memindahkan beban logika berat ke database untuk menjamin konsistensi data yang mutlak.
+### 3.1 Authentication & Authorization
+The system uses **JSON Web Token (JWT)** for stateless authentication.
+- **Login Implementation:** `apps/users/views.py` → `MyTokenObtainPairView`.
+- **Custom Claims:** `role` and `username` are embedded into the token payload via `apps/users/serializers.py` → `MyTokenObtainPairSerializer`. This allows the frontend to read the user's role directly from the token without an extra API call.
+- **Authorization (RBAC):** Access permissions are defined in `core/permissions.py`.
+  - `IsAdminOrPetugas` — used on `/tools/` so only staff can modify equipment data.
+  - `IsOwnerOrAdmin` — used on `/loans/` so students can only view their own data, while Admin can view all.
+  - `IsPeminjam` — restricts loan creation to students only.
 
-### 4.1 Tabel Utama & Relasi
-1.  **`users`**: PK `id`, `username`, `email`, `password`, `role`, `qr_token`.
-2.  **`categories`**: PK `id`, `name`.
-3.  **`tools`**: PK `id`, FK `category_id`, `name`, `stock_total`, `stock_available`, `condition`.
-4.  **`loans`**: PK `id`, FK `user_id`, FK `approved_by`, `loan_date`, `due_date`, `status`.
-5.  **`loan_items`**: PK `id`, FK `loan_id`, FK `tool_id`, `quantity`.
-6.  **`returns`**: PK `id`, FK `loan_id`, FK `processed_by`, `return_date`, `total_fine`.
+### 3.2 Rate Limiting / Throttling
+Prevents brute-force attacks and API abuse.
+- **Location:** `config/settings.py` under `REST_FRAMEWORK`.
+- **Rules:**
+  - `anon`: 20 requests/minute for unauthenticated users.
+  - `user`: 100 requests/minute for authenticated users.
+  - `login`: 5 requests/minute specifically for the `/auth/login/` endpoint.
 
-### 4.2 Stored Procedures (`stored_procedures.sql`)
-*   **`sp_create_loan`**:
-    *   Menerima data user, tanggal, dan JSON berisi daftar alat.
-    *   **Algoritma:** 
-        1. Mulai Transaksi.
-        2. Insert ke `loans`.
-        3. Loop melalui JSON alat.
-        4. Cek stok di tabel `tools` menggunakan `FOR UPDATE` (locking row).
-        5. Jika stok cukup, insert ke `loan_items`.
-        6. Jika gagal, `ROLLBACK` semua. Jika sukses, `COMMIT`.
-*   **`sp_process_return`**:
-    *   Menghitung denda otomatis menggunakan fungsi `fn_calculate_fine`.
-    *   Mendukung pengembalian parsial (sebagian).
+### 3.3 Pagination
+Ensures application performance remains fast even with thousands of records.
+- **Location:** `core/pagination.py` → `StandardPagination` class.
+- **Format:** Returns metadata including `total_pages`, `current_page`, `has_next`, `has_prev`, and `results`.
+- **Default:** 10 items per page, adjustable via `?page_size=` query parameter.
 
-### 4.3 Triggers (`triggers.sql`)
-*   **`trg_decrease_stock_on_approve`**: Saat status loan berubah jadi 'approved', stok di tabel `tools` otomatis berkurang.
-*   **`trg_restore_stock_on_reject`**: Jika ditolak, stok dikembalikan.
-*   **`trg_process_return_item`**: Saat alat kembali, stok bertambah otomatis. Jika kondisi kembali adalah 'rusak', trigger ini bisa menurunkan status kondisi alat di katalog.
-*   **`trg_validate_loan_approver`**: Memastikan peminjam tidak bisa menyetujui (approve) pinjamannya sendiri.
-
----
-
-## 5. Alur Kerja Sistem (Workflows)
-
-### 5.1 Siklus Peminjaman
-1.  **Registrasi/Login**: User mendapatkan token JWT.
-2.  **Pengajuan**: User memanggil `POST /api/v1/loans/`. Logic dijalankan oleh `sp_create_loan`. Status: `pending`.
-3.  **Verifikasi**: Petugas mengecek ketersediaan fisik alat.
-4.  **Approval**: Petugas memanggil `POST /api/v1/loans/{id}/approve/`. Trigger database mengurangi stok secara otomatis. Status: `approved`.
-
-### 5.2 Siklus Pengembalian
-1.  **Penyerahan**: Siswa mengembalikan alat ke petugas.
-2.  **Input Data**: Petugas memanggil `POST /api/v1/returns/`.
-3.  **Kalkulasi**: Database menghitung selisih hari. Jika `hari > 0`, denda dihitung otomatis.
-4.  **Update**: Stok alat bertambah otomatis via trigger. Status: `returned`.
+### 3.4 Input Validation (Triple Layer)
+Validation is applied at three layers:
+1. **Serializer Layer:** Data type and format validation in `apps/*/serializers.py`. Includes email domain restriction — only `@smk-2sbg.sch.id` addresses are accepted during registration.
+2. **Model Layer:** Business logic validation in `apps/loans/models.py` via the `clean()` method — ensures `due_date` cannot precede `loan_date`, and a borrower cannot approve their own loan.
+3. **Database Layer:** CHECK constraints and Triggers in SQL — ensures stock never goes negative and approval rules are enforced even at the database level.
 
 ---
 
-## 6. Audit Trail & Log Aktivitas (Audit System)
+## 4. Database Architecture & SQL Logic
 
-Sistem mencatat setiap jejak langkah user untuk keamanan:
-*   **Middleware Log**: Di `core/middleware.py`, sistem menangkap setiap request `POST`, `PUT`, `PATCH`, dan `DELETE`. Informasi yang dicatat meliputi: User ID, URL endpoint, Method, IP Address, dan Timestamp.
-*   **Database Log**: Trigger `trg_log_new_user` mencatat langsung ke tabel `activity_logs` setiap kali ada baris baru di tabel `users`.
-*   **Monitoring**: Admin dapat memantau log ini di `api/v1/logs/`.
+The system delegates heavy business logic to the database layer to guarantee absolute data consistency.
+
+### 4.1 Main Tables & Relations
+1. **`users`**: PK `id`, `username`, `email` (domain-restricted), `password` (Argon2 hash), `role`, `qr_token` (UUID4).
+2. **`categories`**: PK `id`, `name`.
+3. **`tools`**: PK `id`, FK `category_id`, `name`, `stock_total`, `stock_available`, `condition`, `qr_code` (UUID4).
+4. **`loans`**: PK `id`, FK `user_id`, FK `approved_by`, `loan_date`, `due_date`, `status`.
+5. **`loan_items`**: PK `id`, FK `loan_id`, FK `tool_id`, `quantity`, `quantity_returned`.
+6. **`returns`**: PK `id`, FK `loan_id`, FK `processed_by`, `return_date`, `late_days`, `total_fine`.
+7. **`return_items`**: PK `id`, FK `return_id`, FK `loan_item_id`, `quantity_returned`, `condition_on_return`.
+8. **`activity_logs`**: PK `id`, FK `user_id`, `action`, `description`, `ip_address`.
+
+### 4.2 Stored Procedures (`sql/stored_procedures.sql`)
+- **`sp_create_loan`**:
+  - Accepts user data, dates, and a JSON array of equipment items.
+  - Algorithm:
+    1. Validate input before opening a transaction.
+    2. Start Transaction.
+    3. Insert into `loans`.
+    4. Loop through JSON items.
+    5. Lock each tool row using `SELECT FOR UPDATE` (prevents race conditions).
+    6. Check stock availability. If insufficient, `ROLLBACK` everything.
+    7. If all checks pass, insert into `loan_items` and `COMMIT`.
+- **`sp_process_return`**:
+  - Supports partial returns — a loan can be returned across multiple sessions.
+  - Automatically calculates fines using `fn_calculate_fine`.
+  - Inserts into `return_items` per equipment, triggering automatic side effects.
+- **`sp_get_user_by_qr`** & **`sp_get_tool_by_qr`**: QR code scan lookup procedures for the physical loan workflow.
+
+### 4.3 Triggers (`sql/triggers.sql`)
+- **`trg_validate_loan_approver`**: Validates that the approver has the correct role (`petugas` or `admin`) and cannot approve their own loan.
+- **`trg_decrease_stock_on_approve`**: When loan status changes to `approved`, stock in `tools` is automatically reduced using cursor with `FOR UPDATE` locking.
+- **`trg_restore_stock_on_reject`**: If a previously approved loan is rejected, stock is restored automatically.
+- **`trg_process_return_item`**: On each return item insert — updates `quantity_returned`, restores stock, applies downgrade-only condition rule, and automatically updates loan status to `partial_returned` or `returned`.
+- **`trg_check_stock_before_loan_item`**: Pre-validation guard before inserting into `loan_items`.
+- **`trg_log_new_user`**: Automatically logs to `activity_logs` whenever a new user is created.
 
 ---
 
-## 7. Keamanan & Enkripsi
-*   **Password Hashing**: Menggunakan `django.contrib.auth.hashers`. Password tidak pernah disimpan dalam bentuk teks biasa, melainkan di-hash menggunakan algoritma **PBKDF2** dengan salt yang unik untuk setiap user.
-*   **CORS Policy**: Dikonfigurasi di `config/settings.py` untuk mengizinkan hanya domain frontend tertentu yang bisa mengakses API.
-*   **JWT Security**: Token memiliki masa kadaluarsa (Access: 60 menit, Refresh: 7 hari). Jika token bocor, akses akan otomatis tertutup setelah waktu habis.
+## 5. System Workflows
+
+### 5.1 Loan Cycle
+1. **Register/Login**: User receives a JWT access token.
+2. **Submit Request**: User calls `POST /api/v1/loans/`. Logic is executed by `sp_create_loan`. Status: `pending`.
+3. **Verification**: Staff physically verifies equipment availability.
+4. **Approval**: Staff calls `POST /api/v1/loans/{id}/approve/`. Database trigger automatically reduces stock. Status: `approved`.
+
+### 5.2 Return Cycle
+1. **Equipment Return**: Student brings equipment back to staff.
+2. **Data Input**: Staff calls `POST /api/v1/returns/` with a list of returned items and their conditions.
+3. **Calculation**: Database calculates late days. If `late_days > 0`, fine is calculated automatically.
+4. **Auto Update**: Stock increases automatically via trigger. Loan status updates to `partial_returned` or `returned` depending on whether all items have been returned.
 
 ---
 
-## 8. Business Logic: Kalkulasi Denda (Logika Inti)
-Algoritma denda diimplementasikan di level SQL melalui fungsi `fn_calculate_fine`:
+## 6. Audit Trail & Activity Logging
+
+The system records every user action for security and accountability:
+- **Middleware Log**: `core/middleware.py` captures every `POST`, `PUT`, `PATCH`, and `DELETE` request. Recorded information includes: User ID, endpoint URL, HTTP method, IP Address, and Timestamp.
+- **Database Log**: The `trg_log_new_user` trigger records directly to `activity_logs` on every new user creation.
+- **Monitoring**: Admin can monitor all logs via `GET /api/v1/logs/`.
+
+---
+
+## 7. Security & Encryption
+
+- **Password Hashing**: Uses **Argon2** (Password Hashing Competition 2015 winner) as the primary hasher. Passwords are never stored in plain text. Each hash uses a unique salt generated at the time of hashing.
+- **Email Domain Restriction**: Registration is restricted to verified school email domains (`@smk-2sbg.sch.id`). Requests with unauthorized domains are rejected at the serializer layer.
+- **JWT Security**: Tokens have an expiration time (Access: 60 minutes, Refresh: 7 days). `ROTATE_REFRESH_TOKENS` and `BLACKLIST_AFTER_ROTATION` are enabled — used refresh tokens are immediately invalidated to prevent replay attacks.
+- **Security Headers**: HSTS, XSS Filter, Content-Type Options, X-Frame-Options (DENY), and Referrer Policy are configured in `settings.py`.
+- **CORS Policy**: Only specific frontend origins are allowed to access the API.
+
+---
+
+## 8. Business Logic: Fine Calculation
+The fine calculation algorithm is implemented at the SQL level via `fn_calculate_fine`:
+
 ```sql
 CREATE FUNCTION fn_calculate_fine(due_date, return_date, fine_per_day)
 BEGIN
@@ -145,36 +156,43 @@ BEGIN
     END IF;
 END;
 ```
-Nilai `fine_per_day` diambil dari pengaturan variabel lingkungan (`.env`) atau default sistem (Rp 5.000).
+
+The `fine_per_day` value is taken from the environment variable (`DEFAULT_FINE_PER_DAY`) with a system default of Rp 5,000 per day.
 
 ---
 
-## 9. Integrasi Frontend (Panduan untuk Developer UI)
-API ini dirancang untuk mudah dikonsumsi oleh React, Vue, atau Mobile App:
-*   **Header**: Selalu kirim `Authorization: Bearer <token>` untuk endpoint yang dikunci.
-*   **Error Handling**: Sistem mengembalikan kode status HTTP yang standar (400 untuk input salah, 401 untuk token habis, 403 untuk dilarang akses, 404 untuk data tidak ada, 500 untuk error server).
-*   **Format JSON**: Response sukses selalu dibungkus dalam objek:
-    ```json
-    {
-        "success": true,
-        "message": "...",
-        "data": { ... }
-    }
-    ```
+## 9. Frontend Integration Guide
+This API is designed to be easily consumed by React, Vue, or Mobile applications:
+- **Header**: Always send `Authorization: Bearer <token>` for protected endpoints.
+- **Error Handling**: The system returns standard HTTP status codes (400 for bad input, 401 for expired token, 403 for forbidden access, 404 for not found, 500 for server error).
+- **JSON Format**: All responses are wrapped in a consistent structure:
+  ```json
+  {
+      "success": true,
+      "message": "...",
+      "data": { ... }
+  }
+  ```
 
 ---
 
-## 10. Panduan Deployment & Instalasi
-1.  Clone repository.
-2.  Buat virtual environment: `python -m venv venv`.
-3.  Install dependencies: `pip install -r requirements.txt`.
-4.  Konfigurasi `.env` (Database, Secret Key).
-5.  Jalankan migrasi awal: `python manage.py migrate`.
-6.  Import SQL manual: `mysql < stored_procedures.sql` dan `mysql < triggers.sql`.
-7.  Jalankan server: `python manage.py runserver`.
+## 10. Deployment & Installation Guide
+1. Clone the repository.
+2. Create a virtual environment: `python -m venv venv`.
+3. Install dependencies: `pip install -r requirements.txt`.
+4. Configure `.env` (Database credentials, Secret Key, Fine settings).
+5. Run Django migrations: `python manage.py migrate`.
+6. Import SQL logic via MySQL shell:
+   ```sql
+   SOURCE sql/stored_procedures.sql;
+   SOURCE sql/triggers.sql;
+   SOURCE sql/seed.sql;
+   ```
+7. Create initial users via Django shell: `python manage.py shell`.
+8. Run the development server: `python manage.py runserver`.
 
 ---
-**Dibuat oleh:** fathir
 
-**Status:** Produksi / Siap Pakai
-**Catatan Akhir:** Seluruh kode telah mengikuti standar PEP 8 (Python) dan normalisasi database tingkat ketiga (3NF).
+**Author:** fathir578  
+**Status:** Production Ready — v1.2.3  
+**Notes:** All code follows PEP 8 standards (Python) and third normal form database normalization (3NF).
