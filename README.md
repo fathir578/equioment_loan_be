@@ -15,7 +15,7 @@ A production-ready REST API backend designed with high security standards for ma
 - **Argon2 Authentication & JWT**: Uses the **Argon2** algorithm (Password Hashing Competition winner) combined with a **Refresh Token Blacklist** system for highly secure sessions.
 - **Multi-Layer Security**:
   - **Anti-Privilege Escalation**: Automatic protection on registration to prevent unauthorized users from gaining Admin access.
-  - **Email Domain Validation**: Registration is restricted to verified school email domains only (`@smk-2sbg.sch.id`).
+  - **Email Domain Validation**: Registration is restricted to verified school email domains only.
   - **Fine Manipulation Guard**: Fine calculation is locked server-side to prevent client-side data manipulation.
   - **Security Headers**: Equipped with HSTS, XSS Filter, Content-Type Options, and Referrer Policy.
   - **Rate Limiting**: Brute-force protection on critical endpoints (Login: 5 req/minute).
