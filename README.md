@@ -1,88 +1,89 @@
-# 🛠️ Equipment Loan System Backend
-**Sistem Manajemen Peminjaman Alat Sekolah — UKK RPL 2025/2026**
+# Equipment Loan System Backend
+**School Equipment Loan Management System — UKK RPL 2025/2026**
 
 [![Django](https://img.shields.io/badge/Django-4.2.10-092e20?style=for-the-badge&logo=django&logoColor=white)](https://www.djangoproject.com/)
 [![DRF](https://img.shields.io/badge/DRF-3.14.0-ff1709?style=for-the-badge&logo=django&logoColor=white)](https://www.django-rest-framework.org/)
 [![JWT](https://img.shields.io/badge/Authentication-JWT-000000?style=for-the-badge&logo=json-web-tokens&logoColor=white)](https://jwt.io/)
-[![Version](https://img.shields.io/badge/Version-1.2.0--Stable-blue?style=for-the-badge)](https://github.com/fathir578/equioment_loan_be)
+[![Version](https://img.shields.io/badge/Version-1.2.3--Stable-blue?style=for-the-badge)](https://github.com/fathir578/equioment_loan_be)
 
-Sistem backend ini adalah solusi API **Production-Ready** yang dirancang dengan standar keamanan tinggi untuk manajemen inventaris sekolah. Dilengkapi dengan logika bisnis tingkat rendah pada database (Stored Procedures & Triggers) dan proteksi berlapis terhadap serangan siber.
-
----
-
-## ✨ Fitur Utama & Keamanan Mutakhir
-Sistem ini telah melewati audit keamanan mendalam dan mengimplementasikan fitur profesional:
-
-*   **🔐 Autentikasi Argon2 & JWT**: Menggunakan algoritma **Argon2** (pemenang Password Hashing Competition) dan sistem **Refresh Token Blacklist** untuk sesi yang sangat aman.
-*   **🛡️ Keamanan Berlapis**:
-    *   **Anti-Privilege Escalation**: Proteksi otomatis pada registrasi untuk mencegah pendaftar ilegal mendapatkan hak akses Admin.
-    *   **Fine Manipulation Guard**: Kalkulasi denda dikunci di sisi server (backend) untuk mencegah manipulasi data oleh klien.
-    *   **Security Headers**: Dilengkapi HSTS, XSS Filter, Content-Type Options, dan Referrer Policy.
-    *   **Rate Limiting**: Proteksi anti brute-force pada endpoint krusial (Login: 5 req/menit).
-*   **📊 Dashboard Analytics**: Statistik data inventaris, pengguna, dan denda secara real-time untuk Admin.
-*   **📱 Real-time QR Code**: Otomatisasi generate fisik QR Code (.png) berbasis **UUID4** yang aman (non-predictable).
-*   **💰 SQL Logic Center**: Transaksi atomik via Stored Procedures dan pembaruan stok otomatis via Database Triggers.
-*   **📝 Audit Trail Pro**: Pencatatan log aktivitas otomatis yang mencakup IP Address dan User-Agent.
+A production-ready REST API backend designed with high security standards for managing school equipment inventory. Built with low-level database business logic (Stored Procedures & Triggers) and multi-layer protection against common attack vectors.
 
 ---
 
-## 🚀 Panduan Instalasi
+## Key Features & Security
 
-### 1. Prasyarat
-*   Python 3.13+
-*   MariaDB / MySQL
-*   Git
+- **Argon2 Authentication & JWT**: Uses the **Argon2** algorithm (Password Hashing Competition winner) combined with a **Refresh Token Blacklist** system for highly secure sessions.
+- **Multi-Layer Security**:
+  - **Anti-Privilege Escalation**: Automatic protection on registration to prevent unauthorized users from gaining Admin access.
+  - **Email Domain Validation**: Registration is restricted to verified school email domains only (`@smk-2sbg.sch.id`).
+  - **Fine Manipulation Guard**: Fine calculation is locked server-side to prevent client-side data manipulation.
+  - **Security Headers**: Equipped with HSTS, XSS Filter, Content-Type Options, and Referrer Policy.
+  - **Rate Limiting**: Brute-force protection on critical endpoints (Login: 5 req/minute).
+- **Dashboard Analytics**: Real-time statistics for inventory, users, and fines — accessible by Admin only.
+- **Real-time QR Code**: Automatic generation of physical QR Code files (.png) based on secure **UUID4** (non-predictable).
+- **SQL Logic Center**: Atomic transactions via Stored Procedures and automatic stock updates via Database Triggers.
+- **Audit Trail**: Automatic activity logging that captures IP Address and User-Agent for every critical action.
 
-### 2. Kloning & Setup
+---
+
+## Installation Guide
+
+### 1. Prerequisites
+- Python 3.13+
+- MariaDB / MySQL
+- Git
+
+### 2. Clone & Setup
 ```bash
 git clone https://github.com/fathir578/equioment_loan_be.git
 cd equioment_loan_be
 
-# Buat & Aktifkan Virtual Environment
+# Create & Activate Virtual Environment
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
 # venv\Scripts\activate   # Windows
 
-# Install Dependensi (Termasuk argon2-cffi)
+# Install Dependencies (including argon2-cffi)
 pip install -r requirements.txt
 ```
 
-### 3. Konfigurasi Lingkungan
-Salin file `.env.example` menjadi `.env` dan isi kredensial database Anda.
+### 3. Environment Configuration
+Copy `.env.example` to `.env` and fill in your database credentials.
 
-### 4. Sinkronisasi Database
-Sistem menggunakan kombinasi Django Migrations dan Manual SQL Logic:
+### 4. Database Setup
+This system uses a combination of Django Migrations and Manual SQL Logic:
 ```bash
-# 1. Jalankan Migrasi Django (Tabel & Skema)
+# 1. Run Django Migrations (Tables & Schema)
 python manage.py migrate
 
-# 2. Import Logic Database (Prosedur & Trigger)
+# 2. Import Database Logic (Procedures & Triggers)
 mysql -u root -p db_peminjaman_alat < sql/stored_procedures.sql
 mysql -u root -p db_peminjaman_alat < sql/triggers.sql
 
-# 3. Seed Data Awal (Opsional - Testing)
+# 3. Seed Initial Data (Optional - for Testing)
 mysql -u root -p db_peminjaman_alat < sql/seed.sql
 ```
 
 ---
 
-## 🧪 Validasi & Pengujian
-Jalankan perintah berikut untuk memverifikasi kesehatan sistem:
+## Testing & Validation
+Run the following commands to verify system integrity:
 ```bash
-# Uji Logika Python
+# Run Python Logic Tests
 python manage.py test tests/
 
-# Dokumentasi API (Swagger)
-# Server Running di: http://localhost:8000/api/docs/
+# Access API Documentation (Swagger UI)
+# Server running at: http://localhost:8000/api/docs/
 ```
 
 ---
 
-## 📖 Dokumentasi Teknis
-*   [**PROJECT_OVERVIEW.md**](./PROJECT_OVERVIEW.md) — Arsitektur & Keamanan Detail.
-*   [**DATABASE_ERD_EXPLAINED.md**](./DATABASE_ERD_EXPLAINED.md) — Penjelasan Skema & Relasi DB.
-*   [**API_DOCUMENTATION.md**](./API_DOCUMENTATION.md) — Daftar Endpoint & Cara Pakai.
+## Technical Documentation
+- [**PROJECT_OVERVIEW.md**](./PROJECT_OVERVIEW.md) — Architecture & Security Details.
+- [**DATABASE_ERD_EXPLAINED.md**](./DATABASE_ERD_EXPLAINED.md) — Schema & Database Relation Explanation.
+- [**API_DOCUMENTATION.md**](./API_DOCUMENTATION.md) — Endpoint List & Usage Guide.
 
 ---
-**Status:** Major Milestone v1.2.0 (Security Audited & Production Ready)
-**Tanggal Rilis:** 11 Maret 2026
+
+**Status:** Major Milestone v1.2.3 (Security Audited & Production Ready)  
+**Release Date:** 12 March 2026
