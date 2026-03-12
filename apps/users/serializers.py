@@ -4,6 +4,10 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 User = get_user_model()
 
+ALLOWED_DOMAINS = [
+    'smk-2sbg.sch.id',
+]
+
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
@@ -15,14 +19,22 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'email', 'password') # Hapus 'role' dari sini
+        fields = ('username', 'email', 'password')
+
+    def validate_email(self, value):
+        domain = value.split('@')[-1]
+        if domain not in ALLOWED_DOMAINS:
+            raise serializers.ValidationError(
+                'Email tidak valid, coba lagi.'
+            )
+        return value
 
     def create(self, validated_data):
         user = User.objects.create_user(
             username=validated_data['username'],
             email=validated_data['email'],
             password=validated_data['password'],
-            role='peminjam' # Paksa role jadi peminjam
+            role='peminjam'  # Paksa role jadi peminjam
         )
         return user
 
@@ -30,7 +42,6 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
-        # Add custom claims
         token['username'] = user.username
         token['role'] = user.role
         return token
