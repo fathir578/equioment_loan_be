@@ -5,9 +5,124 @@
 
 ---
 
-## 1. Table Details & Columns
+## 1. Entity Relationship Diagram
 
-### 1.1 Table `users`
+```mermaid
+erDiagram
+    users {
+        int id PK
+        varchar username UK
+        varchar email UK
+        varchar password
+        enum role
+        varchar qr_token UK
+        tinyint is_active
+        tinyint is_staff
+        tinyint is_superuser
+        datetime created_at
+        datetime updated_at
+    }
+
+    categories {
+        int id PK
+        varchar name UK
+        text description
+        datetime created_at
+    }
+
+    tools {
+        int id PK
+        int category_id FK
+        varchar name
+        text description
+        varchar qr_code UK
+        int stock_total
+        int stock_available
+        enum condition
+        tinyint is_active
+        datetime created_at
+        datetime updated_at
+    }
+
+    loans {
+        int id PK
+        int user_id FK
+        int approved_by FK
+        date loan_date
+        date due_date
+        enum status
+        text notes
+        datetime created_at
+        datetime updated_at
+    }
+
+    loan_items {
+        int id PK
+        int loan_id FK
+        int tool_id FK
+        int quantity
+        int quantity_returned
+    }
+
+    returns {
+        int id PK
+        int loan_id FK
+        int processed_by FK
+        date return_date
+        int late_days
+        decimal fine_per_day
+        decimal total_fine
+        text notes
+        datetime created_at
+    }
+
+    return_items {
+        int id PK
+        int return_id FK
+        int loan_item_id FK
+        int quantity_returned
+        enum condition_on_return
+    }
+
+    activity_logs {
+        int id PK
+        int user_id FK
+        varchar action
+        text description
+        varchar ip_address
+        datetime created_at
+    }
+
+    users ||--o{ loans : "meminjam (user_id)"
+    users ||--o{ loans : "menyetujui (approved_by)"
+    users ||--o{ returns : "memproses (processed_by)"
+    users ||--o{ activity_logs : "melakukan"
+    categories ||--o{ tools : "mengklasifikasi"
+    tools ||--o{ loan_items : "dipinjam"
+    loans ||--o{ loan_items : "berisi"
+    loans ||--o{ returns : "dikembalikan"
+    returns ||--o{ return_items : "berisi"
+    loan_items ||--o{ return_items : "direferensikan"
+```
+
+### Relation Summary
+
+| Relation | Type | Description |
+|----------|------|-------------|
+| `users` → `loans` (user_id) | One to Many | One user can have many loans |
+| `users` → `loans` (approved_by) | One to Many | One staff can approve many loans |
+| `users` → `returns` | One to Many | One staff can process many return sessions |
+| `categories` → `tools` | One to Many | One category can have many tools |
+| `loans` → `loan_items` | One to Many | One loan can contain many tools |
+| `loans` → `returns` | One to Many | One loan can have many return sessions |
+| `returns` → `return_items` | One to Many | One return session can contain many tools |
+| `loan_items` → `return_items` | One to Many | One loan item can be returned gradually |
+
+---
+
+## 2. Table Details & Columns
+
+### 2.1 Table `users`
 Stores the identity of all system users.
 
 | Column | Type | Description |
@@ -25,7 +140,7 @@ Stores the identity of all system users.
 
 ---
 
-### 1.2 Table `categories`
+### 2.2 Table `categories`
 Classification of equipment.
 
 | Column | Type | Description |
@@ -36,7 +151,7 @@ Classification of equipment.
 
 ---
 
-### 1.3 Table `tools`
+### 2.3 Table `tools`
 Physical equipment catalog with stock and condition tracking.
 
 | Column | Type | Description |
@@ -54,7 +169,7 @@ Physical equipment catalog with stock and condition tracking.
 
 ---
 
-### 1.4 Table `loans` (Loan Header)
+### 2.4 Table `loans` (Loan Header)
 Records who borrowed what and when.
 
 | Column | Type | Description |
@@ -77,7 +192,7 @@ pending → approved → partial_returned → returned
 
 ---
 
-### 1.5 Table `loan_items` (Loan Detail)
+### 2.5 Table `loan_items` (Loan Detail)
 Line items for each loan — one row per equipment type per loan.
 
 | Column | Type | Description |
@@ -92,7 +207,7 @@ Line items for each loan — one row per equipment type per loan.
 
 ---
 
-### 1.6 Table `returns` (Return Session)
+### 2.6 Table `returns` (Return Session)
 Each time a student brings back equipment, one session record is created here.
 
 | Column | Type | Description |
@@ -110,7 +225,7 @@ Each time a student brings back equipment, one session record is created here.
 
 ---
 
-### 1.7 Table `return_items` (Return Detail)
+### 2.7 Table `return_items` (Return Detail)
 Per-equipment detail within a single return session.
 
 | Column | Type | Description |
@@ -121,11 +236,11 @@ Per-equipment detail within a single return session.
 | `quantity_returned` | INT | Number of units returned in this session |
 | `condition_on_return` | ENUM | Condition when received: `baik`, `rusak_ringan`, `rusak_berat` |
 
-> **Note:** Condition is recorded per-equipment, not per-session. This is because different tools in the same return session may be in different conditions. The trigger reads this value and applies a downgrade-only rule to update `tools.condition`.
+> **Note:** Condition is recorded per-equipment, not per-session. The trigger reads this value and applies a downgrade-only rule to update `tools.condition`.
 
 ---
 
-### 1.8 Table `activity_logs` (Audit Trail)
+### 2.8 Table `activity_logs` (Audit Trail)
 Automatic activity log for every critical system action.
 
 | Column | Type | Description |
@@ -141,7 +256,7 @@ Automatic activity log for every critical system action.
 
 ---
 
-## 2. Key Relationship Logic
+## 3. Key Relationship Logic
 
 **Partial Return Support**  
 One `Loan` can have many `Returns` (return sessions). For example: borrow 10 chairs, return 5 today (Return #1), return the remaining 5 next week (Return #2). The `return_items` table links each returned unit back to its original `loan_items` record, enabling precise tracking of what has and hasn't been returned.
@@ -154,7 +269,7 @@ The `loans` table has two Foreign Keys pointing to the same `users` table — on
 
 ---
 
-## 3. Database-Level Security
+## 4. Database-Level Security
 
 **Trigger `trg_validate_loan_approver`**  
 Prevents fraud at the database level. A borrower cannot approve their own loan request, even if they have direct database access or bypass the API layer.
