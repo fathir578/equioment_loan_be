@@ -10,6 +10,7 @@ urlpatterns = [
     # API Endpoints
     path('api/v1/auth/',        include('apps.users.urls.auth_urls')),
     path('api/v1/users/',       include('apps.users.urls.user_urls')),
+    path('api/v1/departments/', include('apps.departments.urls')),
     path('api/v1/categories/',  include('apps.categories.urls')),
     path('api/v1/tools/',       include('apps.tools.urls')),
     path('api/v1/loans/',       include('apps.loans.urls')),
