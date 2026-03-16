@@ -137,15 +137,17 @@ class LaporanJurusanView(APIView):
                 if col in [1, 2, 4, 6, 7, 8, 9]:
                     cell.alignment = Alignment(horizontal='center')
 
-        # Auto-width
-        for col in ws.columns:
+        # Auto-width (Start from row 3 to avoid merged title cell)
+        for col_idx in range(1, 11):
             max_length = 0
-            column = col[0].column_letter
-            for cell in col:
+            column_letter = ws.cell(row=3, column=col_idx).column_letter
+            # Check headers (row 3) and data (row 4 onwards)
+            for row in ws.iter_rows(min_row=3, max_col=10):
+                cell = row[col_idx-1]
                 try:
-                    if len(str(cell.value)) > max_length:
+                    if cell.value and len(str(cell.value)) > max_length:
                         max_length = len(str(cell.value))
                 except:
                     pass
-            adjusted_width = (max_length + 2)
-            ws.column_dimensions[column].width = adjusted_width
+            adjusted_width = (max_length + 3)
+            ws.column_dimensions[column_letter].width = adjusted_width
