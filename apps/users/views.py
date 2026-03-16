@@ -1,16 +1,22 @@
 from rest_framework import generics, status, viewsets, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.decorators import action
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
-from apps.users.serializers import UserSerializer, RegisterSerializer, MyTokenObtainPairSerializer
+from django_filters.rest_framework import DjangoFilterBackend
+from apps.users.serializers import (
+    UserSerializer, RegisterSerializer, MyTokenObtainPairSerializer,
+    PeminjamCreateSerializer, PeminjamVerifySerializer
+)
 from core.utils import success_response, created_response
-from core.permissions import IsAdmin
+from core.permissions import IsAdmin, CanRegisterPeminjam, IsSameDepartment
 
 User = get_user_model()
 
 class RegisterView(generics.CreateAPIView):
+    """Untuk registrasi admin/petugas awal atau via AllowAny jika diizinkan"""
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
     permission_classes = (permissions.AllowAny,)
@@ -26,10 +32,6 @@ class MyTokenObtainPairView(TokenObtainPairView):
     serializer_class = MyTokenObtainPairSerializer
 
 class LogoutView(APIView):
-    """
-    Logout dengan mem-blacklist refresh token.
-    Token akses di client harus dihapus manual.
-    """
     permission_classes = (permissions.IsAuthenticated,)
 
     def post(self, request):
@@ -38,7 +40,7 @@ class LogoutView(APIView):
             token = RefreshToken(refresh_token)
             token.blacklist()
             return success_response(message="Logout berhasil.")
-        except Exception as e:
+        except Exception:
             return Response({"success": False, "message": "Token tidak valid."}, status=status.HTTP_400_BAD_REQUEST)
 
 class ProfileView(APIView):
@@ -49,8 +51,101 @@ class ProfileView(APIView):
         return success_response(serializer.data)
 
 class UserViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet untuk manajemen user.
+    v2.0.0: Ditambah fitur registrasi & verifikasi siswa.
+    """
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = (IsAdmin,)
-    filterset_fields = ['role', 'is_active']
-    search_fields = ['username', 'email']
+    permission_classes = [permissions.IsAuthenticated, IsSameDepartment]
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['role', 'is_active', 'department', 'is_verified']
+    search_fields = ['username', 'email', 'nis', 'nama_lengkap']
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == 'admin':
+            return User.objects.all()
+        elif user.role == 'petugas':
+            # Petugas hanya bisa lihat user di jurusannya (terutama siswa)
+            return User.objects.filter(department=user.department)
+        # Peminjam cuma bisa lihat diri sendiri
+        return User.objects.filter(id=user.id)
+
+    # ------------------------------------------------------------
+    # [NEW v2.0.0] SISWA (PEMINJAM) ENDPOINTS
+    # ------------------------------------------------------------
+
+    @action(detail=False, methods=['get', 'post'], permission_classes=[permissions.IsAuthenticated])
+    def peminjam(self, request):
+        """
+        [v2.0.0] Endpoint Peminjam (Siswa)
+        POST -> Daftar siswa (Hanya CanRegisterPeminjam)
+        GET  -> List siswa (Semua terautentikasi)
+        """
+        if request.method == 'POST':
+            # Cek permission manual untuk POST
+            if not CanRegisterPeminjam().has_permission(request, self):
+                return Response(
+                    {"success": False, "message": "Hanya Admin/Petugas yang bisa mendaftar."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+                
+            serializer = PeminjamCreateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            user = serializer.save()
+            
+            if request.user.role == 'petugas' and not user.department:
+                user.department = request.user.department
+                user.save()
+
+            data = PeminjamCreateSerializer(user).data
+            return created_response(data, message="Siswa berhasil didaftarkan.")
+
+        # GET Logic
+        queryset = self.get_queryset().filter(role=User.Role.PEMINJAM)
+        
+        dept = request.query_params.get('dept')
+        if dept:
+            queryset = queryset.filter(department__kode=dept)
+            
+        kelas = request.query_params.get('kelas')
+        if kelas:
+            queryset = queryset.filter(kelas__iexact=kelas)
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(serializer.data)
+
+    @action(detail=True, methods=['post'], permission_classes=[CanRegisterPeminjam])
+    def verify(self, request, pk=None):
+        """POST /api/v1/users/{id}/verify/ -> Verifikasi siswa"""
+        user_to_verify = self.get_object()
+        if user_to_verify.role != User.Role.PEMINJAM:
+            return Response(
+                {"success": False, "message": "Hanya akun siswa yang bisa diverifikasi."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        serializer = PeminjamVerifySerializer(user_to_verify, data={'is_verified': True}, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        return success_response(message=f"Siswa {user_to_verify.nama_lengkap} berhasil diverifikasi.")
+
+    @action(detail=False, methods=['get'], permission_classes=[CanRegisterPeminjam])
+    def pending(self, request):
+        """GET /api/v1/users/pending/ -> List siswa belum diverifikasi"""
+        queryset = self.get_queryset().filter(role=User.Role.PEMINJAM, is_verified=False)
+        
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response(serializer.data)
