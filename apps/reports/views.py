@@ -1,10 +1,13 @@
 import os
 from datetime import datetime
+from urllib import request
 from django.conf import settings
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from core.permissions import IsAdminOrPetugas
 from openpyxl import Workbook
 from openpyxl.styles import Font, Alignment, PatternFill, Border, Side
 from apps.departments.models import Department
@@ -17,10 +20,19 @@ class LaporanJurusanView(APIView):
     GET /api/v1/reports/{dept_kode}/
     Download laporan peminjaman per jurusan dalam format Excel.
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminOrPetugas]
 
     def get(self, request, dept_kode):
         department = get_object_or_404(Department, kode=dept_kode.upper())
+        if request.user.role == 'petugas':
+            if request.user.department != department:
+                return Response(
+                {
+                    "success": False,
+                    "message": "Anda hanya bisa akses laporan jurusan Anda sendiri."
+                },
+            status=403
+        )
         
         # Query data peminjaman terkait jurusan ini
         # Ambil LoanItem yang user-nya di jurusan ini ATAU alat-nya milik jurusan ini
