@@ -49,14 +49,19 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 def validate_kelas(value):
     """
-    Format: "X RPL A", "XI TPM B", "XII KUL A"
+    Format: "X RPL", "XI TPM", "XII KUL"
+    Atau dengan huruf kelas: "X RPL A", "XI TPM B"
+    Huruf kelas opsional.
     Auto uppercase.
     """
     val = value.upper().strip()
-    pattern = r'^(X|XI|XII)\s[A-Z\s]+\s[A-Z]$'
+    
+    # Dengan huruf kelas: "XI RPL A" atau tanpa: "XI RPL"
+    pattern = r'^(X|XI|XII)\s[A-Z]+(\s[A-Z])?$'
+    
     if not re.match(pattern, val):
         raise serializers.ValidationError(
-            'Format kelas salah. Contoh: "X RPL A", "XI TPM B"'
+            'Format kelas salah. Contoh: "X RPL" atau "X RPL A"'
         )
     return val
 
