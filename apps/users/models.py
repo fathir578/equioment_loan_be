@@ -118,18 +118,15 @@ class User(AbstractBaseUser, PermissionsMixin):
                 raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
-        # Jalankan clean() sebelum save
-        self.full_clean()
-        
-        if not self.qr_token:
-            from core.utils import generate_qr_token, generate_qr_user
-            self.qr_token = generate_qr_token()
-            # [v2.0.0] QR disimpan sesuai struktur folder baru di core/utils
-            # Namun fisik gambarnya akan di-generate via generate_qr_user nanti
-            # Di model ini kita pastikan token ada.
-            
-        super().save(*args, **kwargs)
+    # Hanya jalankan full_clean untuk role yang butuh validasi ketat
+        if self.role in [self.Role.PEMINJAM]:
+            self.full_clean()
 
+        if not self.qr_token:
+            from core.utils import generate_qr_token
+            self.qr_token = generate_qr_token()
+
+        super().save(*args, **kwargs)
     def __str__(self):
         if self.role == self.Role.PEMINJAM:
             return f'{self.nama_lengkap} ({self.nis})'

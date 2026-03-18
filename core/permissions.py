@@ -80,12 +80,12 @@ class CanRegisterPeminjam(BasePermission):
 
 
 class IsSameDepartment(BasePermission):
-    """
-    - Admin: bisa semua.
-    - Petugas: hanya data di jurusannya sendiri.
-    - Peminjam: hanya datanya sendiri.
-    """
-    message = 'Akses ditolak. Anda tidak memiliki izin untuk mengakses data di luar jurusan Anda.'
+    message = 'Akses ditolak.'
+
+    def has_permission(self, request, view):
+        # Semua yang authenticated boleh akses
+        # Filter dilakukan di get_queryset() di views
+        return request.user.is_authenticated
 
     def has_object_permission(self, request, view, obj):
         user = request.user
