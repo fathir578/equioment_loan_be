@@ -1,6 +1,12 @@
 -- ============================================================
 --  APLIKASI PEMINJAMAN ALAT — schema.sql
---  Versi 2.0.0 — Sprint 1: Department & Student Identity
+--  Versi final setelah semua bug fix
+--
+--  Bug fixes dari review:
+--  [Bug 4] condition_on_return dipindah ke return_items (per alat)
+--  [Bug 5] CHECK constraint: approved_by != user_id
+--  [Bug 6] Tambah return_items + loan_items.quantity_returned
+--           + status 'partial_returned' di loans
 -- ============================================================
 
 CREATE DATABASE IF NOT EXISTS db_peminjaman_alat
@@ -10,53 +16,23 @@ CREATE DATABASE IF NOT EXISTS db_peminjaman_alat
 USE db_peminjaman_alat;
 
 -- ------------------------------------------------------------
--- 0. DEPARTMENTS [NEW v2.0.0]
--- ------------------------------------------------------------
-CREATE TABLE departments (
-    id         INT UNSIGNED NOT NULL AUTO_INCREMENT,
-    kode       VARCHAR(10)  NOT NULL UNIQUE,
-    nama       VARCHAR(100) NOT NULL,
-    bidang     VARCHAR(100) NOT NULL,
-    is_active  TINYINT      NOT NULL DEFAULT 1,
-    created_at DATETIME     DEFAULT CURRENT_TIMESTAMP,
-    PRIMARY KEY (id),
-    INDEX idx_dept_kode (kode)
-) ENGINE=InnoDB;
-
-
--- ------------------------------------------------------------
--- 1. USERS [UPDATED v2.0.0]
+-- 1. USERS
 -- ------------------------------------------------------------
 CREATE TABLE users (
     id            INT UNSIGNED     NOT NULL AUTO_INCREMENT,
     username      VARCHAR(50)      NOT NULL UNIQUE,
-    email         VARCHAR(100)     NULL UNIQUE,  -- [v2.0.0] Jadi NULL untuk Peminjam
+    email         VARCHAR(100)     NOT NULL UNIQUE,
     password_hash VARCHAR(255)     NOT NULL,
     role          ENUM('admin','petugas','peminjam') NOT NULL DEFAULT 'peminjam',
-    
-    -- [NEW v2.0.0] Identitas Siswa
-    department_id INT UNSIGNED     NULL,
-    nis           VARCHAR(20)      NULL UNIQUE,
-    nama_lengkap  VARCHAR(100)     NULL,
-    kelas         VARCHAR(20)      NULL,
-    is_verified   TINYINT          NOT NULL DEFAULT 0,
-
     qr_token      VARCHAR(64)      NOT NULL UNIQUE
                   COMMENT 'Token unik yang di-encode jadi QR Card user',
     is_active     TINYINT(1)       NOT NULL DEFAULT 1,
-    is_staff      TINYINT(1)       NOT NULL DEFAULT 0,
-    is_superuser  TINYINT(1)       NOT NULL DEFAULT 0,
     created_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at    DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP
                   ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
-    CONSTRAINT fk_users_department
-        FOREIGN KEY (department_id) REFERENCES departments(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
     INDEX idx_users_role (role),
-    INDEX idx_users_qr_token (qr_token),
-    INDEX idx_users_dept (department_id),
-    INDEX idx_users_nis (nis)
+    INDEX idx_users_qr_token (qr_token)
 ) ENGINE=InnoDB;
 
 
@@ -73,12 +49,11 @@ CREATE TABLE categories (
 
 
 -- ------------------------------------------------------------
--- 3. TOOLS [UPDATED v2.0.0]
+-- 3. TOOLS
 -- ------------------------------------------------------------
 CREATE TABLE tools (
     id              INT UNSIGNED  NOT NULL AUTO_INCREMENT,
     category_id     INT UNSIGNED  NOT NULL,
-    department_id   INT UNSIGNED  NULL, -- [NEW v2.0.0] Kepemilikan per Jurusan
     name            VARCHAR(150)  NOT NULL,
     description     TEXT,
     qr_code         VARCHAR(64)   NOT NULL UNIQUE
@@ -94,19 +69,26 @@ CREATE TABLE tools (
     CONSTRAINT fk_tools_category
         FOREIGN KEY (category_id) REFERENCES categories(id)
         ON DELETE RESTRICT ON UPDATE CASCADE,
-    CONSTRAINT fk_tools_department
-        FOREIGN KEY (department_id) REFERENCES departments(id)
-        ON DELETE SET NULL ON UPDATE CASCADE,
     CONSTRAINT chk_stock CHECK (stock_available <= stock_total),
     INDEX idx_tools_qr_code (qr_code),
     INDEX idx_tools_category (category_id),
-    INDEX idx_tools_dept (department_id),
     INDEX idx_tools_is_active (is_active)
 ) ENGINE=InnoDB;
 
 
 -- ------------------------------------------------------------
 -- 4. LOANS
+--
+--  [Bug 5] CHECK approved_by != user_id — guard terakhir di DB.
+--    Meskipun layer API sudah validasi, DB adalah safety net
+--    kalau ada bug atau bypass di level aplikasi.
+--
+--  [Bug 6] Status diperluas:
+--    pending          → menunggu persetujuan
+--    approved         → disetujui, sedang dipinjam
+--    rejected         → ditolak
+--    partial_returned → sebagian alat sudah dikembalikan
+--    returned         → semua alat sudah dikembalikan
 -- ------------------------------------------------------------
 CREATE TABLE loans (
     id          INT UNSIGNED  NOT NULL AUTO_INCREMENT,
@@ -141,6 +123,12 @@ CREATE TABLE loans (
 
 -- ------------------------------------------------------------
 -- 5. LOAN_ITEMS
+--
+--  [Bug 6] quantity_returned melacak berapa unit per alat
+--    yang sudah dikembalikan.
+--    → quantity_returned = 0        : belum ada yang dikembalikan
+--    → 0 < quantity_returned < qty  : partial
+--    → quantity_returned = quantity : fully returned
 -- ------------------------------------------------------------
 CREATE TABLE loan_items (
     id                INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -163,7 +151,16 @@ CREATE TABLE loan_items (
 
 
 -- ------------------------------------------------------------
--- 6. RETURNS
+-- 6. RETURNS  (satu sesi pengembalian)
+--
+--  [Bug 6] Satu loan BISA punya lebih dari satu return.
+--    Contoh: pinjam 3 alat, kembalikan 2 hari ini (return #1),
+--    kembalikan sisanya minggu depan (return #2).
+--    Karena itu tidak ada UNIQUE KEY di loan_id.
+--
+--  [Bug 4] condition_on_return TIDAK ada di sini.
+--    Kondisi adalah per-alat, bukan per-sesi.
+--    Ada di return_items.
 -- ------------------------------------------------------------
 CREATE TABLE returns (
     id           INT UNSIGNED  NOT NULL AUTO_INCREMENT,
@@ -187,7 +184,15 @@ CREATE TABLE returns (
 
 
 -- ------------------------------------------------------------
--- 7. RETURN_ITEMS
+-- 7. RETURN_ITEMS  [TABEL BARU — Bug 6 + Bug 4]
+--
+--  Detail per-alat dalam satu sesi pengembalian.
+--
+--  [Bug 4] condition_on_return ada di sini karena tiap alat
+--    bisa punya kondisi berbeda saat dikembalikan.
+--    Trigger akan membaca ini dan update tools.condition,
+--    dengan aturan: hanya DOWNGRADE kondisi, tidak pernah
+--    auto-upgrade (alat rusak tidak tiba-tiba jadi "baik").
 -- ------------------------------------------------------------
 CREATE TABLE return_items (
     id                  INT UNSIGNED NOT NULL AUTO_INCREMENT,
@@ -203,6 +208,7 @@ CREATE TABLE return_items (
     CONSTRAINT fk_ri_loan_item
         FOREIGN KEY (loan_item_id) REFERENCES loan_items(id)
         ON DELETE RESTRICT ON UPDATE CASCADE,
+    -- Satu loan_item hanya bisa muncul sekali per sesi return
     UNIQUE KEY uq_return_loanitem (return_id, loan_item_id),
     CONSTRAINT chk_ri_qty CHECK (quantity_returned >= 1)
 ) ENGINE=InnoDB;
@@ -217,7 +223,6 @@ CREATE TABLE activity_logs (
     action      VARCHAR(100)  NOT NULL,
     description TEXT,
     ip_address  VARCHAR(45)   COMMENT 'IPv4 atau IPv6',
-    user_agent  TEXT,          -- [NEW v2.0.0] Tambahan dari middleware
     created_at  DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (id),
     INDEX idx_logs_user_id (user_id),

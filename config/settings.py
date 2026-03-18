@@ -62,12 +62,14 @@ INSTALLED_APPS = [
     'corsheaders',
 
     # Local apps
+    'apps.departments',
     'apps.users',
     'apps.categories',
     'apps.tools',
     'apps.loans',
     'apps.returns',
     'apps.activity_logs',
+    'apps.reports',
 ]
 
 MIDDLEWARE = [

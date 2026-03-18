@@ -1,88 +1,185 @@
-# Penjelasan Struktur Database & ERD
-**Proyek:** Sistem Peminjaman Alat Sekolah
-**Status:** Dokumen Teknis (Sesuai v1.1.0)
+# Database Structure & ERD Explanation
+**Project:** School Equipment Loan Management System  
+**Version:** v2.0.0 (Departmental Release)
+**Status:** Technical Document (Developer Reference)
 
 ---
 
-## 1. Rincian Tabel & Kolom
+## 1. Entity Relationship Diagram
 
-### 1.1 Tabel `users`
-Menyimpan identitas semua pengguna sistem.
-*   `id`: Primary Key (Auto Increment).
-*   `username`: Unik, identitas login.
-*   `email`: Unik, alamat surel.
-*   `password`: Hash (**Argon2** / PBKDF2).
-*   `role`: Enum ('admin', 'petugas', 'peminjam').
-*   `qr_token`: Unik, token rahasia untuk kartu QR (UUID4).
-*   `is_active`, `is_staff`: Flag keamanan Django.
+```mermaid
+erDiagram
+    departments {
+        int id PK
+        varchar kode UK
+        varchar nama
+        varchar bidang
+        tinyint is_active
+        datetime created_at
+    }
 
-### 1.2 Tabel `categories`
-Klasifikasi alat.
-*   `id`: Primary Key.
-*   `name`: Nama kategori (Unik).
-*   `description`: Deskripsi singkat.
+    users {
+        int id PK
+        int department_id FK
+        varchar username UK
+        varchar email UK
+        varchar password
+        enum role
+        varchar nis UK
+        varchar nama_lengkap
+        varchar kelas
+        tinyint is_verified
+        varchar qr_token UK
+        tinyint is_active
+        tinyint is_staff
+        tinyint is_superuser
+        datetime created_at
+        datetime updated_at
+    }
 
-### 1.3 Tabel `tools` (Alat)
-Katalog fisik alat.
-*   `id`: Primary Key.
-*   `category_id`: Foreign Key ke `categories`.
-*   `name`: Nama alat.
-*   `stock_total`: Stok awal pengadaan.
-*   `stock_available`: Stok yang bisa dipinjam saat ini.
-*   `condition`: Enum ('baik', 'rusak_ringan', 'rusak_berat').
-*   `qr_code`: Token fisik yang tertempel di alat (UUID4).
+    categories {
+        int id PK
+        varchar name UK
+        text description
+        datetime created_at
+    }
 
-### 1.4 Tabel `loans` (Header Peminjaman)
-Mencatat siapa yang meminjam dan kapan.
-*   `id`: Primary Key.
-*   `user_id`: FK ke `users` (Si Peminjam).
-*   `approved_by`: FK ke `users` (Petugas yang approve).
-*   `loan_date`: Tanggal pinjam.
-*   `due_date`: Tanggal jatuh tempo kembali.
-*   `status`: Enum ('pending', 'approved', 'rejected', 'partial_returned', 'returned').
+    tools {
+        int id PK
+        int category_id FK
+        int department_id FK
+        varchar name
+        text description
+        varchar qr_code UK
+        int stock_total
+        int stock_available
+        enum condition
+        tinyint is_active
+        datetime created_at
+        datetime updated_at
+    }
 
-### 1.5 Tabel `loan_items` (Detail Peminjaman)
-*   `id`: Primary Key.
-*   `loan_id`: FK ke `loans`.
-*   `tool_id`: FK ke `tools`.
-*   `quantity`: Jumlah alat yang dipinjam.
-*   `quantity_returned`: Melacak berapa yang sudah kembali (untuk partial return).
+    loans {
+        int id PK
+        int user_id FK
+        int approved_by FK
+        date loan_date
+        date due_date
+        enum status
+        text notes
+        datetime created_at
+        datetime updated_at
+    }
 
-### 1.6 Tabel `returns` (Sesi Pengembalian)
-Setiap kali siswa datang membawa alat, dicatat satu sesi ini.
-*   `id`: Primary Key.
-*   `loan_id`: FK ke `loans`.
-*   `processed_by`: FK ke `users` (Petugas penerima).
-*   `return_date`: Tanggal aktual kembali.
-*   `late_days`: Jumlah hari terlambat (otomatis dari SP).
-*   `total_fine`: Total denda sesi ini (otomatis dari SP).
+    loan_items {
+        int id PK
+        int loan_id FK
+        int tool_id FK
+        int quantity
+        int quantity_returned
+    }
 
-### 1.7 Tabel `return_items` (Detail Kembalian)
-*   `id`: Primary Key.
-*   `return_id`: FK ke `returns`.
-*   `loan_item_id`: FK ke `loan_items`.
-*   `quantity_returned`: Jumlah yang dikembalikan saat ini.
-*   `condition_on_return`: Kondisi alat saat diterima kembali.
+    returns {
+        int id PK
+        int loan_id FK
+        int processed_by FK
+        date return_date
+        int late_days
+        decimal fine_per_day
+        decimal total_fine
+        text notes
+        datetime created_at
+    }
 
-### 1.8 Tabel `activity_logs` (Audit Trail)
-*   `id`: Primary Key.
-*   `user_id`: FK ke `users` (Opsional).
-*   `action`: Nama aksi (misal: "POST /loans/").
-*   `ip_address`: Alamat IP pengakses.
-*   `user_agent`: Informasi browser/perangkat pengakses.
+    return_items {
+        int id PK
+        int return_id FK
+        int loan_item_id FK
+        int quantity_returned
+        enum condition_on_return
+    }
+
+    activity_logs {
+        int id PK
+        int user_id FK
+        varchar action
+        text description
+        varchar ip_address
+        text user_agent
+        datetime created_at
+    }
+
+    departments ||--o{ users : "memiliki"
+    departments ||--o{ tools : "memiliki"
+    users ||--o{ loans : "meminjam (user_id)"
+    users ||--o{ loans : "menyetujui (approved_by)"
+    users ||--o{ returns : "memproses (processed_by)"
+    users ||--o{ activity_logs : "melakukan"
+    categories ||--o{ tools : "mengklasifikasi"
+    tools ||--o{ loan_items : "dipinjam"
+    loans ||--o{ loan_items : "berisi"
+    loans ||--o{ returns : "dikembalikan"
+    returns ||--o{ return_items : "berisi"
+    loan_items ||--o{ return_items : "direferensikan"
+```
+
+### Relation Summary (v2.0.0 Updates)
+
+| Relation | Type | Description |
+|----------|------|-------------|
+| `departments` → `users` | One to Many | One department has many students/staff |
+| `departments` → `tools` | One to Many | One department owns many tools |
+| `users` → `loans` (user_id) | One to Many | One student can have many loans |
+| `users` → `loans` (approved_by) | One to Many | One staff can approve many loans |
+| `categories` → `tools` | One to Many | One category can have many tools |
 
 ---
 
-## 2. Logika Relasi Penting
+## 2. Table Details (v2.0.0 Updates)
 
-1.  **Partial Return Support:** Satu `Loan` bisa memiliki banyak `Returns`. Contoh: Pinjam 10 kursi, hari ini kembali 5 (Return #1), besok kembali 5 (Return #2). Itulah kenapa ada tabel `return_items` yang merujuk ke `loan_items`.
-2.  **Double FK to Users:** Tabel `loans` punya dua relasi ke user: satu sebagai subjek (peminjam) dan satu sebagai objek otoritas (approver).
-3.  **Audit Trail:** `activity_logs` didesain dengan `ON DELETE SET NULL`. Artinya jika user dihapus, catatan riwayatnya tetap ada (audit trail tidak boleh hilang).
+### 2.1 Table `departments` [NEW v2.0.0]
+Stores information about school departments (e.g., RPL, TPM, TSM).
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INT | Primary Key |
+| `kode` | VARCHAR(10) | Unique code (e.g., 'RPL') |
+| `nama` | VARCHAR(100) | Full name of the department |
+| `bidang` | VARCHAR(100) | Industry field (e.g., 'Agribisnis') |
 
 ---
 
-## 3. Keamanan Level Database
+### 2.2 Table `users` [UPDATED v2.0.0]
+Added departmental and academic identity fields.
 
-*   **Trigger `trg_validate_loan_approver`**: Mencegah kecurangan. Peminjam tidak bisa menyetujui pinjamannya sendiri meskipun dia punya akses ke database.
-*   **Check Constraint**: `stock_available` tidak akan pernah bisa lebih besar dari `stock_total`.
-*   **SP Transaction**: Seluruh proses peminjaman berada dalam satu transaksi. Jika salah satu alat gagal di-lock stoknya, maka seluruh peminjaman batal (tidak ada data menggantung).
+| Column | Type | Description |
+|--------|------|-------------|
+| `department_id` | INT | Foreign Key to `departments` (nullable for generic admin) |
+| `nis` | VARCHAR(20) | Unique Student Identification Number |
+| `nama_lengkap` | VARCHAR(100) | Student's full name |
+| `kelas` | VARCHAR(20) | Student's class (e.g., 'X RPL A') |
+| `is_verified` | TINYINT | Verification flag for student identity |
+
+---
+
+### 2.3 Table `tools` [UPDATED v2.0.0]
+Added departmental ownership.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `department_id` | INT | Foreign Key to `departments` (nullable for general equipment) |
+
+---
+
+### 2.4 Table `activity_logs` [UPDATED v2.0.0]
+Added user agent tracking for better audit trails.
+
+| Column | Type | Description |
+|--------|------|-------------|
+| `user_agent` | TEXT | Captured browser/client signature |
+
+---
+
+## 3. SQL Logic Integration
+
+The v2.0.0 system continues to use **Stored Procedures** and **Triggers** for core logic (fines, stock, audit logs) while adding departmental context for access control. Database triggers ensure that even if the API is bypassed, data integrity across departments is maintained.

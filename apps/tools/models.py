@@ -1,11 +1,11 @@
 # ============================================================
-#  apps/tools/models.py — Model Alat
+#  apps/tools/models.py — Model Alat [v2.0.0]
 # ============================================================
 
 from django.db import models
 from django.core.validators import MinValueValidator
 from apps.categories.models import Category
-from core.utils import generate_qr_token
+from apps.departments.models import Department
 
 
 class Tool(models.Model):
@@ -17,7 +17,15 @@ class Tool(models.Model):
 
     category        = models.ForeignKey(
         Category,
-        on_delete=models.PROTECT,   # Tidak bisa hapus kategori yang masih punya alat
+        on_delete=models.PROTECT,
+        related_name='tools'
+    )
+    # [NEW v2.0.0] Kepemilikan per Jurusan
+    department      = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='tools'
     )
     name            = models.CharField(max_length=150)
@@ -48,24 +56,23 @@ class Tool(models.Model):
         indexes  = [
             models.Index(fields=['qr_code']),
             models.Index(fields=['category']),
+            models.Index(fields=['department']),
             models.Index(fields=['is_active']),
         ]
 
     def save(self, *args, **kwargs):
-        # Auto-generate qr_code saat alat pertama kali dibuat
         if not self.qr_code:
-            from core.utils import generate_qr_token, generate_qr_image
+            from core.utils import generate_qr_token, generate_qr_tool
             self.qr_code = generate_qr_token()
-            # Generate fisik gambar QR
-            generate_qr_image(self.qr_code, f'tool_{self.qr_code[:8]}')
+            # Generate fisik gambar QR akan dilakukan via generate_qr_tool
 
-        # Pastikan stock_available tidak melebihi stock_total
         if self.stock_available > self.stock_total:
             self.stock_available = self.stock_total
         super().save(*args, **kwargs)
 
     def __str__(self):
-        return f'{self.name} (stok: {self.stock_available}/{self.stock_total})'
+        dept_str = f" [{self.department.kode}]" if self.department else ""
+        return f'{self.name}{dept_str} ({self.stock_available}/{self.stock_total})'
 
     @property
     def is_available(self):

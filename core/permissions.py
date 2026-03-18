@@ -1,5 +1,5 @@
 # ============================================================
-#  core/permissions.py — RBAC: izin per role
+#  core/permissions.py — RBAC: izin per role [v2.0.0]
 # ============================================================
 
 from rest_framework.permissions import BasePermission
@@ -53,9 +53,6 @@ class IsOwnerOrAdmin(BasePermission):
     """
     User hanya bisa akses data milik sendiri.
     Admin bisa akses data semua user.
-
-    Dipakai di endpoint seperti GET /loans/{id}
-    → Peminjam hanya bisa lihat loan miliknya sendiri.
     """
     message = 'Akses ditolak. Anda hanya bisa mengakses data milik sendiri.'
 
@@ -65,3 +62,66 @@ class IsOwnerOrAdmin(BasePermission):
         # Cek apakah object punya field user/user_id
         owner = getattr(obj, 'user', None) or getattr(obj, 'user_id', None)
         return owner == request.user or owner == request.user.id
+
+
+# ------------------------------------------------------------
+# [NEW v2.0.0] ADDITIONAL PERMISSIONS
+# ------------------------------------------------------------
+
+class CanRegisterPeminjam(BasePermission):
+    """Hanya admin dan petugas yang bisa mendaftarkan peminjam (siswa)."""
+    message = 'Akses ditolak. Hanya Admin atau Petugas yang bisa mendaftarkan siswa.'
+
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated
+            and request.user.role in ('admin', 'petugas')
+        )
+
+
+class IsSameDepartment(BasePermission):
+    message = 'Akses ditolak.'
+
+    def has_permission(self, request, view):
+        # Semua yang authenticated boleh akses
+        # Filter dilakukan di get_queryset() di views
+        return request.user.is_authenticated
+
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if not user.is_authenticated:
+            return False
+            
+        if user.role == 'admin':
+            return True
+
+        # Logika untuk Petugas
+        if user.role == 'petugas':
+            # Jika objek memiliki department_id atau department
+            obj_dept = getattr(obj, 'department', None) or getattr(obj, 'department_id', None)
+            
+            # Khusus untuk model User, jika objeknya adalah user itu sendiri
+            from apps.users.models import User
+            if isinstance(obj, User):
+                return obj.department == user.department
+            
+            # Khusus untuk model Loan, cek department dari peminjamnya
+            from apps.loans.models import Loan
+            if isinstance(obj, Loan):
+                return obj.user.department == user.department
+
+            return obj_dept == user.department
+
+        # Logika untuk Peminjam
+        if user.role == 'peminjam':
+            # Jika objek adalah dirinya sendiri
+            from apps.users.models import User
+            if isinstance(obj, User):
+                return obj == user
+            
+            # Jika objek adalah pinjamannya
+            from apps.loans.models import Loan
+            if isinstance(obj, Loan):
+                return obj.user == user
+
+        return False
