@@ -3,6 +3,8 @@ from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
 from drf_spectacular.views import SpectacularAPIView, SpectacularRedocView, SpectacularSwaggerView
+from apps.tools.qr_views import QRScanView
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -19,6 +21,7 @@ urlpatterns = [
     path('api/v1/reports/',     include('apps.reports.urls')),
 
     # Documentation
+    path('api/v1/qr-scan/', QRScanView.as_view(), name='qr-scan'),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
     path('api/redoc/', SpectacularRedocView.as_view(url_name='schema'), name='redoc'),
