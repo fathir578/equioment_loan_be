@@ -1,4 +1,4 @@
-from rest_framework import viewsets, permissions, status
+from rest_framework import request, viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -26,7 +26,8 @@ class LoanViewSet(viewsets.ModelViewSet):
 
     def create(self, request, *args, **kwargs):
         # Gunakan Stored Procedure sp_create_loan
-        user_id = request.user.id
+        requested_user_id = request.data.get('user_id')
+        user_id = int(requested_user_id) if requested_user_id else request.user.id
         loan_date = request.data.get('loan_date')
         due_date = request.data.get('due_date')
         notes = request.data.get('notes', '')
