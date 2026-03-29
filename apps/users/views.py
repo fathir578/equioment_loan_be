@@ -9,7 +9,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from django.db import models
 from apps.users.serializers import (
     UserSerializer, RegisterSerializer, MyTokenObtainPairSerializer,
-    PeminjamCreateSerializer, PeminjamVerifySerializer, PetugasCreateSerializer
+    PeminjamCreateSerializer, PeminjamVerifySerializer, PetugasCreateSerializer,
+    PetugasUpdateSerializer
 )
 from core.utils import success_response, created_response
 from core.permissions import IsAdmin, CanRegisterPeminjam, IsSameDepartment
@@ -160,19 +161,19 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         GET /api/v1/users/petugas/ -> List all petugas users
         POST /api/v1/users/petugas/ -> Create new petugas user
-        
+
         GET Query params:
         - search: filter by username or nama_lengkap (case insensitive)
         - department: filter by department_id
         - page_size: number of results per page
-        
+
         POST Required fields:
         - username (string)
         - email (string, must be @smk-2sbg.sch.id)
         - nama_lengkap (string)
         - department (integer, department ID)
         - password (string, min 6 characters)
-        
+
         Only accessible by admin users.
         """
         if request.method == 'POST':
@@ -182,23 +183,23 @@ class UserViewSet(viewsets.ModelViewSet):
 
             data = UserSerializer(user).data
             return created_response(data, message="Petugas berhasil dibuat.")
-        
+
         # GET Logic
         queryset = User.objects.filter(role=User.Role.PETUGAS)
-        
+
         # Filter by search (username or nama_lengkap)
         search = request.query_params.get('search', None)
         if search:
             queryset = queryset.filter(
-                models.Q(username__icontains=search) | 
+                models.Q(username__icontains=search) |
                 models.Q(nama_lengkap__icontains=search)
             )
-        
+
         # Filter by department
         department = request.query_params.get('department', None)
         if department:
             queryset = queryset.filter(department_id=department)
-        
+
         # Pagination with page_size param (custom pagination)
         page_size = request.query_params.get('page_size', None)
         if page_size:
@@ -208,7 +209,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 paginator = Paginator(queryset, page_size)
                 page_number = request.query_params.get('page', 1)
                 page_obj = paginator.get_page(page_number)
-                
+
                 data = UserSerializer(page_obj.object_list, many=True).data
                 return success_response({
                     'count': paginator.count,
@@ -218,10 +219,46 @@ class UserViewSet(viewsets.ModelViewSet):
                 })
             except (ValueError, TypeError):
                 pass
-        
+
         # Default: return all results with count
         serializer = self.get_serializer(queryset, many=True)
         return success_response({
             'count': queryset.count(),
             'results': serializer.data
         })
+
+    @action(detail=True, methods=['put', 'delete'], permission_classes=[permissions.IsAuthenticated, IsAdmin])
+    def petugas_item(self, request, pk=None):
+        """
+        PUT /api/v1/users/petugas/{id}/ -> Update petugas user
+        DELETE /api/v1/users/petugas/{id}/ -> Delete petugas user
+
+        PUT Optional fields:
+        - username (string)
+        - email (string, must be @smk-2sbg.sch.id)
+        - nama_lengkap (string)
+        - department (integer, department ID)
+        - password (string, min 6 characters, optional)
+
+        Only accessible by admin users.
+        """
+        user_to_modify = self.get_object()
+        
+        # Ensure user is a petugas
+        if user_to_modify.role != User.Role.PETUGAS:
+            return Response(
+                {"success": False, "message": "User bukan petugas."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if request.method == 'PUT':
+            serializer = PetugasUpdateSerializer(user_to_modify, data=request.data, partial=False)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            data = UserSerializer(user_to_modify).data
+            return success_response(data, message="Petugas berhasil diupdate.")
+
+        elif request.method == 'DELETE':
+            user_to_modify.delete()
+            return success_response(message="Petugas berhasil dihapus.")

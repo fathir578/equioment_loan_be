@@ -448,3 +448,300 @@ class PetugasEndpointTest(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['data']['count'], 0)
         self.assertEqual(len(response.data['data']['results']), 0)
+
+    # ------------------------------------------------------------
+    # PUT /api/v1/users/petugas/{id}/ TESTS
+    # ------------------------------------------------------------
+
+    def test_update_petugas_success(self):
+        """Admin berhasil update data petugas"""
+        self.client.force_authenticate(user=self.admin)
+        
+        # Create petugas user
+        petugas = User.objects.create_user(
+            username='petugas_old',
+            email='old@smk-2sbg.sch.id',
+            password='oldpass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas Old',
+            department=self.department
+        )
+
+        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        data = {
+            'username': 'petugas_new',
+            'email': 'new@smk-2sbg.sch.id',
+            'nama_lengkap': 'Petugas New',
+            'department': self.department.id
+        }
+        response = self.client.put(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['success'])
+        self.assertEqual(response.data['message'], 'Petugas berhasil diupdate.')
+        self.assertEqual(response.data['data']['username'], 'petugas_new')
+        self.assertEqual(response.data['data']['email'], 'new@smk-2sbg.sch.id')
+        
+        # Verify password still works
+        petugas.refresh_from_db()
+        self.assertTrue(petugas.check_password('oldpass123'))
+
+    def test_update_petugas_with_password(self):
+        """Admin update petugas dengan password baru"""
+        self.client.force_authenticate(user=self.admin)
+        
+        petugas = User.objects.create_user(
+            username='petugas_pass',
+            email='pass@smk-2sbg.sch.id',
+            password='oldpass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas Pass',
+            department=self.department
+        )
+
+        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        data = {
+            'username': 'petugas_pass',
+            'email': 'pass@smk-2sbg.sch.id',
+            'nama_lengkap': 'Petugas Pass',
+            'department': self.department.id,
+            'password': 'newpass456'
+        }
+        response = self.client.put(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Verify new password works
+        petugas.refresh_from_db()
+        self.assertTrue(petugas.check_password('newpass456'))
+
+    def test_update_petugas_short_password(self):
+        """Password minimal 6 karakter"""
+        self.client.force_authenticate(user=self.admin)
+        
+        petugas = User.objects.create_user(
+            username='petugas_short',
+            email='short@smk-2sbg.sch.id',
+            password='oldpass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas Short',
+            department=self.department
+        )
+
+        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        data = {
+            'username': 'petugas_short',
+            'email': 'short@smk-2sbg.sch.id',
+            'nama_lengkap': 'Petugas Short',
+            'department': self.department.id,
+            'password': '12345'
+        }
+        response = self.client.put(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data['success'])
+
+    def test_update_petugas_invalid_email_domain(self):
+        """Email harus domain @smk-2sbg.sch.id"""
+        self.client.force_authenticate(user=self.admin)
+        
+        petugas = User.objects.create_user(
+            username='petugas_email',
+            email='email@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas Email',
+            department=self.department
+        )
+
+        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        data = {
+            'username': 'petugas_email',
+            'email': 'email@gmail.com',
+            'nama_lengkap': 'Petugas Email',
+            'department': self.department.id
+        }
+        response = self.client.put(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data['success'])
+
+    def test_update_petugas_unauthorized(self):
+        """User tanpa auth tidak bisa update petugas"""
+        petugas = User.objects.create_user(
+            username='petugas_unauth',
+            email='unauth@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas Unauth',
+            department=self.department
+        )
+
+        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        data = {
+            'username': 'petugas_new',
+            'email': 'new@smk-2sbg.sch.id',
+            'nama_lengkap': 'Petugas New',
+            'department': self.department.id
+        }
+        response = self.client.put(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_update_petugas_forbidden_for_peminjam(self):
+        """Peminjam tidak bisa update petugas"""
+        self.client.force_authenticate(user=self.peminjam)
+        
+        petugas = User.objects.create_user(
+            username='petugas_forbidden',
+            email='forbidden@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas Forbidden',
+            department=self.department
+        )
+
+        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        data = {
+            'username': 'petugas_new',
+            'email': 'new@smk-2sbg.sch.id',
+            'nama_lengkap': 'Petugas New',
+            'department': self.department.id
+        }
+        response = self.client.put(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_update_non_petugas_user(self):
+        """Tidak bisa update user yang bukan petugas"""
+        self.client.force_authenticate(user=self.admin)
+        
+        # Create peminjam user
+        peminjam = User.objects.create_user(
+            username='999999',
+            email='peminjam999@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PEMINJAM,
+            nis='999999',
+            nama_lengkap='Peminjam Test',
+            kelas='X RPL',
+            department=self.department
+        )
+
+        url = reverse('user-petugas-item', kwargs={'pk': peminjam.id})
+        data = {
+            'username': 'peminjam_new',
+            'email': 'peminjam999@smk-2sbg.sch.id',
+            'nama_lengkap': 'Peminjam New',
+            'department': self.department.id
+        }
+        response = self.client.put(url, data, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data['success'])
+        self.assertEqual(response.data['message'], 'User bukan petugas.')
+
+    # ------------------------------------------------------------
+    # DELETE /api/v1/users/petugas/{id}/ TESTS
+    # ------------------------------------------------------------
+
+    def test_delete_petugas_success(self):
+        """Admin berhasil hapus petugas"""
+        self.client.force_authenticate(user=self.admin)
+        
+        petugas = User.objects.create_user(
+            username='petugas_delete',
+            email='delete@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas Delete',
+            department=self.department
+        )
+
+        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        response = self.client.delete(url, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertTrue(response.data['success'])
+        self.assertEqual(response.data['message'], 'Petugas berhasil dihapus.')
+        
+        # Verify user deleted
+        self.assertFalse(User.objects.filter(id=petugas.id).exists())
+
+    def test_delete_petugas_unauthorized(self):
+        """User tanpa auth tidak bisa hapus petugas"""
+        petugas = User.objects.create_user(
+            username='petugas_del_unauth',
+            email='delunauth@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas Del Unauth',
+            department=self.department
+        )
+
+        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        response = self.client.delete(url, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_delete_petugas_forbidden_for_peminjam(self):
+        """Peminjam tidak bisa hapus petugas"""
+        self.client.force_authenticate(user=self.peminjam)
+        
+        petugas = User.objects.create_user(
+            username='petugas_del_forbidden',
+            email='delforbidden@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas Del Forbidden',
+            department=self.department
+        )
+
+        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        response = self.client.delete(url, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_delete_non_petugas_user(self):
+        """Tidak bisa delete user yang bukan petugas"""
+        self.client.force_authenticate(user=self.admin)
+        
+        # Create peminjam user
+        peminjam = User.objects.create_user(
+            username='888888',
+            email='peminjam888@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PEMINJAM,
+            nis='888888',
+            nama_lengkap='Peminjam Delete',
+            kelas='XI RPL',
+            department=self.department
+        )
+
+        url = reverse('user-petugas-item', kwargs={'pk': peminjam.id})
+        response = self.client.delete(url, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertFalse(response.data['success'])
+        self.assertEqual(response.data['message'], 'User bukan petugas.')
+        
+        # Verify user not deleted
+        self.assertTrue(User.objects.filter(id=peminjam.id).exists())

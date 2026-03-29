@@ -120,6 +120,40 @@ class PetugasCreateSerializer(serializers.ModelSerializer):
         return repr
 
 
+class PetugasUpdateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, min_length=6, required=False)
+
+    class Meta:
+        model = User
+        fields = ('username', 'email', 'nama_lengkap', 'department', 'password')
+
+    def validate_email(self, value):
+        domain = value.split('@')[-1]
+        if domain not in ALLOWED_DOMAINS:
+            raise serializers.ValidationError(
+                f'Email harus menggunakan domain {", ".join(ALLOWED_DOMAINS)}'
+            )
+        return value
+
+    def update(self, instance, validated_data):
+        # Handle password update (optional)
+        password = validated_data.pop('password', None)
+        if password:
+            instance.set_password(password)
+        
+        # Update other fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
+
+    def to_representation(self, instance):
+        repr = super().to_representation(instance)
+        # Remove password from response
+        repr.pop('password', None)
+        return repr
+
+
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
