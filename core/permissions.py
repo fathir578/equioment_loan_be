@@ -53,12 +53,16 @@ class IsOwnerOrAdmin(BasePermission):
     """
     User hanya bisa akses data milik sendiri.
     Admin bisa akses data semua user.
+    Petugas bisa akses data semua user (untuk proses approve/return).
     """
     message = 'Akses ditolak. Anda hanya bisa mengakses data milik sendiri.'
 
     def has_object_permission(self, request, view, obj):
-        if request.user.role == 'admin':
+        # Admin dan Petugas bisa akses semua data
+        if request.user.role in ('admin', 'petugas'):
             return True
+        
+        # Peminjam hanya bisa akses data milik sendiri
         # Cek apakah object punya field user/user_id
         owner = getattr(obj, 'user', None) or getattr(obj, 'user_id', None)
         return owner == request.user or owner == request.user.id
