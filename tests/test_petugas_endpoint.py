@@ -745,3 +745,58 @@ class PetugasEndpointTest(TestCase):
         
         # Verify user not deleted
         self.assertTrue(User.objects.filter(id=peminjam.id).exists())
+
+    def test_delete_petugas_has_related_returns(self):
+        """Tidak bisa delete petugas yang masih punya data pengembalian"""
+        from apps.returns.models import Return
+        from apps.loans.models import Loan
+        from datetime import date
+        
+        self.client.force_authenticate(user=self.admin)
+        
+        petugas = User.objects.create_user(
+            username='petugas_with_return',
+            email='withreturn@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas With Return',
+            department=self.department
+        )
+        
+        # Create a loan and return processed by this petugas
+        siswa = User.objects.create_user(
+            username='999998',
+            email='siswa999@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PEMINJAM,
+            nis='999998',
+            nama_lengkap='Siswa Test',
+            kelas='X RPL',
+            department=self.department
+        )
+        
+        loan = Loan.objects.create(
+            user=siswa,
+            loan_date=date.today(),
+            due_date=date.today(),
+            status='returned',
+            approved_by=petugas
+        )
+        
+        Return.objects.create(
+            loan=loan,
+            return_date=date.today(),
+            processed_by=petugas
+        )
+
+        url = reverse('user-petugas-detail', kwargs={'pk': petugas.id})
+        response = self.client.delete(url, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_409_CONFLICT)
+        self.assertFalse(response.data['success'])
+        self.assertIn('masih memiliki data terkait', response.data['message'])
+        
+        # Verify user not deleted
+        self.assertTrue(User.objects.filter(id=petugas.id).exists())

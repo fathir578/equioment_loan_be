@@ -261,7 +261,11 @@ class UserViewSet(viewsets.ModelViewSet):
         DELETE /api/v1/users/petugas/{id}/ -> Delete petugas user
 
         Only accessible by admin users.
+        
+        Note: Cannot delete if petugas has related Return records.
         """
+        from django.db.models.deletion import ProtectedError
+        
         user_to_modify = self.get_object()
         
         # Ensure user is a petugas
@@ -271,8 +275,17 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        user_to_modify.delete()
-        return success_response(message="Petugas berhasil dihapus.")
+        try:
+            user_to_modify.delete()
+            return success_response(message="Petugas berhasil dihapus.")
+        except ProtectedError:
+            return Response(
+                {
+                    "success": False,
+                    "message": "Petugas tidak dapat dihapus karena masih memiliki data terkait (riwayat pengembalian)."
+                },
+                status=status.HTTP_409_CONFLICT
+            )
 
     def retrieve_petugas(self, request, pk=None):
         """
