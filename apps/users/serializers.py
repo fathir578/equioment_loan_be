@@ -88,6 +88,38 @@ class PeminjamVerifySerializer(serializers.ModelSerializer):
         instance.save()
         return instance
 
+
+class PetugasCreateSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, min_length=6)
+
+    class Meta:
+        model = User
+        fields = ('username', 'email', 'nama_lengkap', 'department', 'password')
+
+    def validate_email(self, value):
+        domain = value.split('@')[-1]
+        if domain not in ALLOWED_DOMAINS:
+            raise serializers.ValidationError(
+                f'Email harus menggunakan domain {", ".join(ALLOWED_DOMAINS)}'
+            )
+        return value
+
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            **validated_data
+        )
+        return user
+
+    def to_representation(self, instance):
+        repr = super().to_representation(instance)
+        # Remove password from response
+        repr.pop('password', None)
+        return repr
+
+
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):

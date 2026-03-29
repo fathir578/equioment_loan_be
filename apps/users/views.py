@@ -8,7 +8,7 @@ from django.contrib.auth import get_user_model
 from django_filters.rest_framework import DjangoFilterBackend
 from apps.users.serializers import (
     UserSerializer, RegisterSerializer, MyTokenObtainPairSerializer,
-    PeminjamCreateSerializer, PeminjamVerifySerializer
+    PeminjamCreateSerializer, PeminjamVerifySerializer, PetugasCreateSerializer
 )
 from core.utils import success_response, created_response
 from core.permissions import IsAdmin, CanRegisterPeminjam, IsSameDepartment
@@ -141,7 +141,7 @@ class UserViewSet(viewsets.ModelViewSet):
     def pending(self, request):
         """GET /api/v1/users/pending/ -> List siswa belum diverifikasi"""
         queryset = self.get_queryset().filter(role=User.Role.PEMINJAM, is_verified=False)
-        
+
         page = self.paginate_queryset(queryset)
         if page is not None:
             serializer = self.get_serializer(page, many=True)
@@ -149,3 +149,28 @@ class UserViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(queryset, many=True)
         return success_response(serializer.data)
+
+    # ------------------------------------------------------------
+    # [NEW] PETUGAS ENDPOINT
+    # ------------------------------------------------------------
+
+    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsAdmin])
+    def petugas(self, request):
+        """
+        POST /api/v1/users/petugas/ -> Create new petugas user
+        
+        Required fields:
+        - username (string)
+        - email (string, must be @smk-2sbg.sch.id)
+        - nama_lengkap (string)
+        - department (integer, department ID)
+        - password (string, min 6 characters)
+        
+        Only accessible by admin users.
+        """
+        serializer = PetugasCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+        
+        data = UserSerializer(user).data
+        return created_response(data, message="Petugas berhasil dibuat.")
