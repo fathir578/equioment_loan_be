@@ -14,15 +14,33 @@ from core.utils import success_response, created_response
 class LoanViewSet(viewsets.ModelViewSet):
     serializer_class = LoanSerializer
     permission_classes = [permissions.IsAuthenticated, IsOwnerOrAdmin]
-    filterset_fields = ['status', 'user']
+    filterset_fields = ['user']  # Remove 'status' from filterset_fields - we handle it manually
     search_fields = ['notes', 'user__username']
 
     def get_queryset(self):
-        # Admin & Petugas (Staff) can see everything
-        if self.request.user.role in ('admin', 'petugas'):
-            return Loan.objects.all()
-        # Siswa only sees their own
-        return Loan.objects.filter(user=self.request.user)
+        user = self.request.user
+        queryset = Loan.objects.all().select_related('user', 'user__department')
+
+        # Handle status filter - support comma-separated values
+        status_param = self.request.query_params.get('status', None)
+        if status_param:
+            status_list = [s.strip() for s in status_param.split(',')]
+            queryset = queryset.filter(status__in=status_list)
+
+        # Filter berdasarkan role user
+        if user.role == 'peminjam':
+            # Siswa hanya bisa lihat peminjaman sendiri
+            queryset = queryset.filter(user=user)
+        elif user.role == 'petugas':
+            # Petugas hanya bisa lihat peminjaman dari departmentnya
+            if hasattr(user, 'department') and user.department:
+                queryset = queryset.filter(user__department=user.department)
+            else:
+                # Petugas tanpa department tidak bisa lihat data
+                queryset = queryset.none()
+        # Admin → no filter, bisa lihat semua
+
+        return queryset
 
     def create(self, request, *args, **kwargs):
         # Gunakan Stored Procedure sp_create_loan
