@@ -6,6 +6,7 @@ from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import get_user_model
 from django_filters.rest_framework import DjangoFilterBackend
+from django.db import models
 from apps.users.serializers import (
     UserSerializer, RegisterSerializer, MyTokenObtainPairSerializer,
     PeminjamCreateSerializer, PeminjamVerifySerializer, PetugasCreateSerializer
@@ -151,15 +152,21 @@ class UserViewSet(viewsets.ModelViewSet):
         return success_response(serializer.data)
 
     # ------------------------------------------------------------
-    # [NEW] PETUGAS ENDPOINT
+    # [NEW] PETUGAS ENDPOINTS
     # ------------------------------------------------------------
 
-    @action(detail=False, methods=['post'], permission_classes=[permissions.IsAuthenticated, IsAdmin])
+    @action(detail=False, methods=['get', 'post'], permission_classes=[permissions.IsAuthenticated, IsAdmin])
     def petugas(self, request):
         """
+        GET /api/v1/users/petugas/ -> List all petugas users
         POST /api/v1/users/petugas/ -> Create new petugas user
         
-        Required fields:
+        GET Query params:
+        - search: filter by username or nama_lengkap (case insensitive)
+        - department: filter by department_id
+        - page_size: number of results per page
+        
+        POST Required fields:
         - username (string)
         - email (string, must be @smk-2sbg.sch.id)
         - nama_lengkap (string)
@@ -168,9 +175,53 @@ class UserViewSet(viewsets.ModelViewSet):
         
         Only accessible by admin users.
         """
-        serializer = PetugasCreateSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = serializer.save()
+        if request.method == 'POST':
+            serializer = PetugasCreateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            user = serializer.save()
+
+            data = UserSerializer(user).data
+            return created_response(data, message="Petugas berhasil dibuat.")
         
-        data = UserSerializer(user).data
-        return created_response(data, message="Petugas berhasil dibuat.")
+        # GET Logic
+        queryset = User.objects.filter(role=User.Role.PETUGAS)
+        
+        # Filter by search (username or nama_lengkap)
+        search = request.query_params.get('search', None)
+        if search:
+            queryset = queryset.filter(
+                models.Q(username__icontains=search) | 
+                models.Q(nama_lengkap__icontains=search)
+            )
+        
+        # Filter by department
+        department = request.query_params.get('department', None)
+        if department:
+            queryset = queryset.filter(department_id=department)
+        
+        # Pagination with page_size param (custom pagination)
+        page_size = request.query_params.get('page_size', None)
+        if page_size:
+            try:
+                page_size = int(page_size)
+                from django.core.paginator import Paginator
+                paginator = Paginator(queryset, page_size)
+                page_number = request.query_params.get('page', 1)
+                page_obj = paginator.get_page(page_number)
+                
+                data = UserSerializer(page_obj.object_list, many=True).data
+                return success_response({
+                    'count': paginator.count,
+                    'results': data,
+                    'page': page_obj.number,
+                    'pages': paginator.num_pages
+                })
+            except (ValueError, TypeError):
+                pass
+        
+        # Default: return all results with count
+        serializer = self.get_serializer(queryset, many=True)
+        return success_response({
+            'count': queryset.count(),
+            'results': serializer.data
+        })

@@ -25,14 +25,13 @@ class UserManager(BaseUserManager):
         user.save(using=self._db)
         return user
 
-    def create_superuser(self, username, email, password=None, **extra_fields):
-        """Dipakai oleh: python manage.py createsuperuser"""
+    def create_superuser(self, username, password=None, email=None, **extra_fields):
         extra_fields.setdefault('role', 'admin')
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
-        
-        if not email:
-            raise ValueError('Superuser wajib memiliki email.')
+
+    # Email opsional untuk superuser
+        return self.create_user(username, email, password, **extra_fields)
             
         return self.create_user(username, email, password, **extra_fields)
 

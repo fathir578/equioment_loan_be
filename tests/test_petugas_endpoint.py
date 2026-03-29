@@ -254,3 +254,197 @@ class PetugasEndpointTest(TestCase):
         
         # Password should NOT be in response
         self.assertNotIn('password', data_response)
+
+    # ------------------------------------------------------------
+    # GET /api/v1/users/petugas/ TESTS
+    # ------------------------------------------------------------
+
+    def test_get_petugas_list_success(self):
+        """Admin berhasil mendapatkan list petugas"""
+        self.client.force_authenticate(user=self.admin)
+        
+        # Create some petugas users
+        User.objects.create_user(
+            username='petugas_1',
+            email='petugas1@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas Satu',
+            department=self.department
+        )
+        User.objects.create_user(
+            username='petugas_2',
+            email='petugas2@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas Dua',
+            department=self.department
+        )
+
+        url = reverse('user-petugas')
+        response = self.client.get(url, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['count'], 2)
+        self.assertEqual(len(response.data['data']['results']), 2)
+
+    def test_get_petugas_list_search_username(self):
+        """Search petugas by username"""
+        self.client.force_authenticate(user=self.admin)
+        
+        User.objects.create_user(
+            username='petugas_rpl',
+            email='rpl@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas RPL',
+            department=self.department
+        )
+        User.objects.create_user(
+            username='petugas_tki',
+            email='tki@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas TKI',
+            department=self.department
+        )
+
+        url = reverse('user-petugas')
+        response = self.client.get(url, {'search': 'rpl'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['count'], 1)
+        self.assertEqual(response.data['data']['results'][0]['username'], 'petugas_rpl')
+
+    def test_get_petugas_list_search_nama_lengkap(self):
+        """Search petugas by nama_lengkap"""
+        self.client.force_authenticate(user=self.admin)
+        
+        User.objects.create_user(
+            username='petugas_abc',
+            email='abc@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Ahmad Budi',
+            department=self.department
+        )
+        User.objects.create_user(
+            username='petugas_xyz',
+            email='xyz@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Budi Santoso',
+            department=self.department
+        )
+
+        url = reverse('user-petugas')
+        response = self.client.get(url, {'search': 'budi'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['count'], 2)
+
+    def test_get_petugas_list_filter_department(self):
+        """Filter petugas by department"""
+        self.client.force_authenticate(user=self.admin)
+        
+        # Create another department
+        dept_tki, _ = Department.objects.get_or_create(
+            kode='TKI',
+            defaults={'nama': 'Teknik Komputer dan Informatika'}
+        )
+        
+        User.objects.create_user(
+            username='petugas_rpl',
+            email='rpl@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas RPL',
+            department=self.department
+        )
+        User.objects.create_user(
+            username='petugas_tki',
+            email='tki@smk-2sbg.sch.id',
+            password='pass123',
+            role=User.Role.PETUGAS,
+            is_staff=True,
+            is_verified=True,
+            nama_lengkap='Petugas TKI',
+            department=dept_tki
+        )
+
+        url = reverse('user-petugas')
+        response = self.client.get(url, {'department': self.department.id}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['count'], 1)
+        self.assertEqual(response.data['data']['results'][0]['username'], 'petugas_rpl')
+
+    def test_get_petugas_list_pagination(self):
+        """Pagination with page_size param"""
+        self.client.force_authenticate(user=self.admin)
+        
+        # Create 10 petugas users
+        for i in range(10):
+            User.objects.create_user(
+                username=f'petugas_{i}',
+                email=f'petugas{i}@smk-2sbg.sch.id',
+                password='pass123',
+                role=User.Role.PETUGAS,
+                is_staff=True,
+                is_verified=True,
+                nama_lengkap=f'Petugas {i}',
+                department=self.department
+            )
+
+        url = reverse('user-petugas')
+        response = self.client.get(url, {'page_size': '3', 'page': '1'}, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['count'], 10)
+        self.assertEqual(len(response.data['data']['results']), 3)
+        self.assertEqual(response.data['data']['page'], 1)
+        self.assertEqual(response.data['data']['pages'], 4)
+
+    def test_get_petugas_list_unauthorized(self):
+        """User tanpa auth tidak bisa list petugas"""
+        url = reverse('user-petugas')
+        response = self.client.get(url, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_get_petugas_list_forbidden_for_peminjam(self):
+        """Peminjam tidak bisa list petugas"""
+        self.client.force_authenticate(user=self.peminjam)
+        
+        url = reverse('user-petugas')
+        response = self.client.get(url, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_get_petugas_list_empty(self):
+        """List petugas kosong"""
+        self.client.force_authenticate(user=self.admin)
+        
+        # Delete all petugas
+        User.objects.filter(role=User.Role.PETUGAS).delete()
+
+        url = reverse('user-petugas')
+        response = self.client.get(url, format='json')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['data']['count'], 0)
+        self.assertEqual(len(response.data['data']['results']), 0)
