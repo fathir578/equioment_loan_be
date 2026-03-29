@@ -9,7 +9,9 @@
       "Bash(git merge *)",
       "Bash(git tag *)",
       "Bash(timeout *)",
-      "Bash(mysql *)"
+      "Bash(mysql *)",
+      "Bash(grep *)",
+      "Bash(sed *)"
     ]
   },
   "$version": 3

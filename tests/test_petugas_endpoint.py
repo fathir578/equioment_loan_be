@@ -469,7 +469,7 @@ class PetugasEndpointTest(TestCase):
             department=self.department
         )
 
-        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        url = reverse('user-petugas-detail', kwargs={'pk': petugas.id})
         data = {
             'username': 'petugas_new',
             'email': 'new@smk-2sbg.sch.id',
@@ -503,7 +503,7 @@ class PetugasEndpointTest(TestCase):
             department=self.department
         )
 
-        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        url = reverse('user-petugas-detail', kwargs={'pk': petugas.id})
         data = {
             'username': 'petugas_pass',
             'email': 'pass@smk-2sbg.sch.id',
@@ -534,7 +534,7 @@ class PetugasEndpointTest(TestCase):
             department=self.department
         )
 
-        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        url = reverse('user-petugas-detail', kwargs={'pk': petugas.id})
         data = {
             'username': 'petugas_short',
             'email': 'short@smk-2sbg.sch.id',
@@ -562,7 +562,7 @@ class PetugasEndpointTest(TestCase):
             department=self.department
         )
 
-        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        url = reverse('user-petugas-detail', kwargs={'pk': petugas.id})
         data = {
             'username': 'petugas_email',
             'email': 'email@gmail.com',
@@ -587,7 +587,7 @@ class PetugasEndpointTest(TestCase):
             department=self.department
         )
 
-        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        url = reverse('user-petugas-detail', kwargs={'pk': petugas.id})
         data = {
             'username': 'petugas_new',
             'email': 'new@smk-2sbg.sch.id',
@@ -613,7 +613,7 @@ class PetugasEndpointTest(TestCase):
             department=self.department
         )
 
-        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        url = reverse('user-petugas-detail', kwargs={'pk': petugas.id})
         data = {
             'username': 'petugas_new',
             'email': 'new@smk-2sbg.sch.id',
@@ -640,7 +640,7 @@ class PetugasEndpointTest(TestCase):
             department=self.department
         )
 
-        url = reverse('user-petugas-item', kwargs={'pk': peminjam.id})
+        url = reverse('user-petugas-detail', kwargs={'pk': peminjam.id})
         data = {
             'username': 'peminjam_new',
             'email': 'peminjam999@smk-2sbg.sch.id',
@@ -672,7 +672,7 @@ class PetugasEndpointTest(TestCase):
             department=self.department
         )
 
-        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        url = reverse('user-petugas-detail', kwargs={'pk': petugas.id})
         response = self.client.delete(url, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -695,7 +695,7 @@ class PetugasEndpointTest(TestCase):
             department=self.department
         )
 
-        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        url = reverse('user-petugas-detail', kwargs={'pk': petugas.id})
         response = self.client.delete(url, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
@@ -715,7 +715,7 @@ class PetugasEndpointTest(TestCase):
             department=self.department
         )
 
-        url = reverse('user-petugas-item', kwargs={'pk': petugas.id})
+        url = reverse('user-petugas-detail', kwargs={'pk': petugas.id})
         response = self.client.delete(url, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
@@ -736,7 +736,7 @@ class PetugasEndpointTest(TestCase):
             department=self.department
         )
 
-        url = reverse('user-petugas-item', kwargs={'pk': peminjam.id})
+        url = reverse('user-petugas-detail', kwargs={'pk': peminjam.id})
         response = self.client.delete(url, format='json')
 
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

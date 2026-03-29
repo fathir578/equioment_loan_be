@@ -227,13 +227,11 @@ class UserViewSet(viewsets.ModelViewSet):
             'results': serializer.data
         })
 
-    @action(detail=True, methods=['put', 'delete'], permission_classes=[permissions.IsAuthenticated, IsAdmin])
-    def petugas_item(self, request, pk=None):
+    def update_petugas(self, request, pk=None):
         """
         PUT /api/v1/users/petugas/{id}/ -> Update petugas user
-        DELETE /api/v1/users/petugas/{id}/ -> Delete petugas user
 
-        PUT Optional fields:
+        Optional fields:
         - username (string)
         - email (string, must be @smk-2sbg.sch.id)
         - nama_lengkap (string)
@@ -251,14 +249,45 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        if request.method == 'PUT':
-            serializer = PetugasUpdateSerializer(user_to_modify, data=request.data, partial=False)
-            serializer.is_valid(raise_exception=True)
-            serializer.save()
+        serializer = PetugasUpdateSerializer(user_to_modify, data=request.data, partial=False)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
 
-            data = UserSerializer(user_to_modify).data
-            return success_response(data, message="Petugas berhasil diupdate.")
+        data = UserSerializer(user_to_modify).data
+        return success_response(data, message="Petugas berhasil diupdate.")
 
-        elif request.method == 'DELETE':
-            user_to_modify.delete()
-            return success_response(message="Petugas berhasil dihapus.")
+    def delete_petugas(self, request, pk=None):
+        """
+        DELETE /api/v1/users/petugas/{id}/ -> Delete petugas user
+
+        Only accessible by admin users.
+        """
+        user_to_modify = self.get_object()
+        
+        # Ensure user is a petugas
+        if user_to_modify.role != User.Role.PETUGAS:
+            return Response(
+                {"success": False, "message": "User bukan petugas."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        user_to_modify.delete()
+        return success_response(message="Petugas berhasil dihapus.")
+
+    def retrieve_petugas(self, request, pk=None):
+        """
+        GET /api/v1/users/petugas/{id}/ -> Get single petugas user
+
+        Only accessible by admin users.
+        """
+        user_to_retrieve = self.get_object()
+        
+        # Ensure user is a petugas
+        if user_to_retrieve.role != User.Role.PETUGAS:
+            return Response(
+                {"success": False, "message": "User bukan petugas."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        data = UserSerializer(user_to_retrieve).data
+        return success_response(data)
